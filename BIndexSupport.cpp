@@ -31,6 +31,11 @@ void free_level_info_mem(LEVEL_INFO *);
 DATA_RECORD_LIST *create_data_record_list_mem(void);
 void free_data_record_list_mem(DATA_RECORD_LIST *);
 DATA_RECORD *create_data_record_mem(void);
+LOG_LIST *create_log_list_mem(void);
+LOG_INFO *create_log_info_mem(void);
+void free_log_list_mem(LOG_LIST *);
+void free_log_info_mem(LOG_INFO *);
+
 
 
 /*This is used to determine the node type.*/
@@ -300,4 +305,52 @@ free_a_tree_mem(INDEX_NODE *root)
 		root = NULL;
 		return;
 	}
+}
+
+/*This is used to create log list memory.*/
+LOG_LIST *
+create_log_list_mem(void)
+{
+	LOG_LIST *ret;
+	ret = (LOG_LIST *)malloc(sizeof(LOG_LIST));
+	return ret;
+}
+
+/*This is used to create log info memory.*/
+LOG_INFO *
+create_log_info_mem(void)
+{
+	LOG_INFO *ret;
+	ret = (LOG_INFO *)malloc(sizeof(LOG_INFO));
+	return ret;
+}
+
+/*This is used to free log list memory.*/
+void
+free_log_list_mem(LOG_LIST *log_list)
+{
+	LOG_LIST *cur_log, *target_log;
+	cur_log = log_list;
+	
+	while(cur_log)
+	{
+		target_log = cur_log;
+		cur_log = cur_log->next_log;
+		free(target_log);
+	}
+
+	cur_log = NULL;
+	target_log = NULL;
+	log_list = NULL;
+	return;
+}
+
+/*This is used to free log info memory.*/
+void
+free_log_info_mem(LOG_INFO *log_info)
+{
+	free(log_info->log_list);
+	free(log_info);
+	log_info = NULL;
+	return;
 }

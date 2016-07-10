@@ -7,7 +7,7 @@ using namespace std;
 
 #define MAXKEYNUM 4
 #define LEAST_P_NUM (short)(ceil(MAXKEYNUM/2)+1)
-#define MAXLENGTH 255
+#define MAXLENGTH 256
 #define ALL_REST_NODES -1
 #define NO_LOCK 0
 #define READ_LOCK 1
@@ -34,7 +34,7 @@ enum FIRST_OR_LAST {FIRST_NODE = 0, LAST_NODE = 1};
 
 enum SUB_UP {SUB_MARK = 0, UP_MARK = 1};
 
-enum ACTION {READ, INSERT, UPDATE, DELETE};
+enum ACTION {READ = 0, INSERT = 1, UPDATE = 2 , DELETE = 3};
 
 typedef int PID;
 
@@ -128,6 +128,21 @@ typedef struct test_summary{
         int total_num;
 } TEST_SUMMARY;
 
+typedef struct log_list{
+	PID user;
+	time_t time;
+	ACTION act;
+	DATA_RECORD *data_record;
+	struct log_list *next_log;
+} LOG_LIST;
+
+typedef struct log_info{
+	LOG_LIST *log_list;
+	int total_num;
+	time_t begin_time;
+	IDX_BOOL log_err;
+} LOG_INFO;
+
 
 /*Declare Function.*/
 
@@ -149,6 +164,8 @@ DOUBLE_LEAF_LINK *create_double_leaf_link_mem(void);
 NODE_ANALYZE_RES *create_node_analyze_res_mem(void);
 DATA_RECORD_LIST *create_data_record_list_mem(void);
 DATA_RECORD *create_data_record_mem(void);
+LOG_LIST *create_log_list_mem(void);
+LOG_INFO *create_log_info_mem(void);
 
 /*Following for memory free.*/
 void free_index_node_link_mem(INDEX_NODE_LINK *);
@@ -159,6 +176,8 @@ void free_double_leaf_link_mem(DOUBLE_LEAF_LINK *);
 void free_level_info_mem(LEVEL_INFO *);
 void free_data_record_list_mem(DATA_RECORD_LIST *);
 void free_a_tree_mem(INDEX_NODE *);
+void free_log_list_mem(LOG_LIST *);
+void free_log_info_mem(LOG_INFO *);
 
 /*Following for test support!*/
 RUN_RESULT run_mk_BIndex_test(INDEX_NODE *);
@@ -204,3 +223,7 @@ RUN_RESULT delete_a_tree(INDEX_NODE *);
 RUN_RESULT read_value(INDEX_NODE *, int);
 NODE_ANALYZE_RES *analyze_insert_influnce_nodes(NODE_PATH_INFO *, int);
 IDX_BOOL need_modify_pri(INDEX_NODE *, int);
+
+/*Following for log operations.*/
+RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
+LOG_INFO *exec_read_log(time_t);
