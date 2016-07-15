@@ -7,7 +7,6 @@
 using namespace std;
 
 #define ALL_REST_LEAVES -1
-#define KEY_RANGE 100000
 
 /*This file is used for BIndex Test.*/
 

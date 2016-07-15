@@ -35,7 +35,16 @@ LOG_LIST *create_log_list_mem(void);
 LOG_INFO *create_log_info_mem(void);
 void free_log_list_mem(LOG_LIST *);
 void free_log_info_mem(LOG_INFO *);
-
+DATA_INFO *create_data_info_mem(void);
+void free_data_info_mem(DATA_INFO *);
+DATA_INFO *get_data_info(DATA_RECORD_LIST *);
+IDX_BOOL check_duplicate_data(DATA_RECORD_LIST *, SORT_STAT);
+SUB_TREE_LIST_INFO *create_sub_tree_list_info__mem(void);
+void free_sub_tree_info_mem(SUB_TREE_LIST_INFO *);
+SUB_TREE_INFO_LINK *create_sub_tree_info_link_mem(void);
+void free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *);
+//DEPTH_INFO *create_depth_info_mem(void);
+//void free_depth_info_mem(DEPTH_INFO *);
 
 
 /*This is used to determine the node type.*/
@@ -64,6 +73,85 @@ is_leaf_node(INDEX_NODE *target_node)
         {
                 return(FALSE);
         }
+}
+
+/*This is used to get data info of a data list.*/
+DATA_INFO *
+get_data_info(DATA_RECORD_LIST *data_list)
+{
+	DATA_INFO *res = create_data_info_mem();
+	res->data_list = data_list;
+	res->num = 0;
+	res->max_key = 0;
+	res->min_key = KEY_RANGE;
+	
+	DATA_RECORD_LIST *cur;
+	cur = data_list;
+	
+	while(cur)
+	{
+		if((cur->data_record->key > res->max_key)
+			&& (cur->data_record->key <= KEY_RANGE))
+		{
+			res->max_key = cur->data_record->key;
+		}
+
+		if((cur->data_record->key < res->min_key)
+                        && (cur->data_record->key > 0))
+                {
+                        res->min_key = cur->data_record->key;
+                }
+	
+		cur = cur->next_data;	
+		res->num ++;
+	}
+
+	return(res);
+}
+
+/*This is used to check duplicated keys in a data record list.*/
+IDX_BOOL
+check_duplicate_data(DATA_RECORD_LIST *data_list, SORT_STAT sort_unsort)
+{
+	if(!sort_unsort)
+	{
+		DATA_RECORD_LIST *sorted_list;
+		DATA_INFO *data_info = get_data_info(data_list);
+		sorted_list = quick_sort(data_list, data_info->num);
+		free_data_info_mem(data_info);
+		check_duplicate_data(sorted_list, SORT);
+	}
+	else
+	{
+		int last_key;
+		DATA_RECORD_LIST *cur;
+		cur = data_list;
+		last_key = cur->data_record->key;
+		cur = cur->next_data;		
+
+		if(!cur)
+		{
+			cout<<"At least two data records needed!"<<endl;
+			return(FALSE);
+		}
+
+		IDX_BOOL res = FALSE;
+		while(cur)
+		{
+			if(cur->data_record->key == last_key)
+			{
+				res = TRUE;
+				break;
+			}
+			else
+			{
+				last_key = cur->data_record->key;
+				cur = cur->next_data;
+			}
+		}
+
+		return(res);
+	}
 }
 
 /*This is used for memory allocate for new leaf node.*/
@@ -354,3 +442,93 @@ free_log_info_mem(LOG_INFO *log_info)
 	log_info = NULL;
 	return;
 }
+
+/*This is used to create data info memory.*/
+DATA_INFO *
+create_data_info_mem(void)
+{
+	DATA_INFO *ret;
+	ret = (DATA_INFO *)malloc(sizeof(DATA_INFO));
+	return ret;
+}
+
+/*This is used to free data info memory.*/
+void
+free_data_info_mem(DATA_INFO *data_info)
+{
+	free_data_record_list_mem(data_info->data_list);
+	free(data_info);
+	data_info = NULL;
+	return;
+}
+
+/*This is used to create sub tree list info memory*/
+SUB_TREE_LIST_INFO *
+create_sub_tree_list_info_mem(void)
+{
+	SUB_TREE_LIST_INFO *ret;
+	ret = (SUB_TREE_LIST_INFO *)malloc(sizeof(SUB_TREE_LIST_INFO));
+	return ret;
+}
+
+/*This is used to free sub tree list info memory.*/
+void
+free_sub_tree_list_info_mem(SUB_TREE_LIST_INFO *sub)
+{
+	free_data_record_list_mem(sub->data_list);
+	free_sub_tree_info_link_mem(sub->sub_tree_info_link);
+	free(sub);
+	sub = NULL;
+	return;
+}
+
+/*This is used to create sub tree info link memory.*/
+SUB_TREE_INFO_LINK *
+create_sub_tree_info_link_mem(void)
+{
+	SUB_TREE_INFO_LINK *ret;
+	ret = (SUB_TREE_INFO_LINK *)malloc(sizeof(SUB_TREE_INFO_LINK));
+	return ret;
+}
+
+/*This is used to free sub tree info link memory.*/
+void
+free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *link)
+{
+	SUB_TREE_INFO_LINK *cur_link, *target_link;
+	cur_link = link;
+
+	while(cur_link)
+	{
+		target_link = cur_link;
+		cur_link = cur_link->next_link;
+		free(target_link);
+	}
+	
+	target_link = NULL;
+	cur_link = NULL;
+	link = NULL;
+	return;
+}
+
+/*This is used to create depth info mem.*/
+/*
+DEPTH_INFO *
+create_depth_info_mem(void)
+{
+	DEPTH_INFO *ret;
+	ret = (DEPTH_INFO *)malloc(sizeof(DEPTH_INFO));
+	return ret;
+}
+*/
+
+/*This is used to free depth info mem.*/
+/*
+void
+free_depth_info_mem(DEPTH_INFO *depth)
+{
+	free(depth);
+	depth = NULL;
+	return;
+}
+*/

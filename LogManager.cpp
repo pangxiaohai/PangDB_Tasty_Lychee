@@ -13,11 +13,10 @@ using namespace std;
 /*This file is used to manager log.*/
 
 
-#define LOG_FILE "./PangDB_Log"
-
-
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
 LOG_INFO *exec_read_log(time_t);
+INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
+
 
 
 /*This is used to execute write log.*/
@@ -41,7 +40,7 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 	value_len = strlen(data->value);
 	res_len = value_len + 25;
 	sprintf(log_buf,"%10d%3d%6d%1d%10d", now, res_len, user, act, data->key);
-	write_log<<log_buf<<data->value<<" LOG_END"<<endl;
+	write_log<<log_buf<<data->value<<LOG_END<<endl;
 	write_log.close();
 	return(RUN_SUCCESS);
 }
@@ -91,9 +90,9 @@ exec_read_log(time_t search_time)
 		read_log.read(act_buf, 1);
 		read_log.read(key_buf, 10);
 		read_log.read(value_buf, length);
-		read_log.read(end_buf, 7);
+		read_log.read(end_buf, 8);
 
-		if(strcmp(end_buf, " LOG_END"))
+		if(strcmp(end_buf, LOG_END))
 		{
 			cout<<"Log Error!\n"<<endl;
 			res->log_err = TRUE;
@@ -137,4 +136,73 @@ exec_read_log(time_t search_time)
 	read_log.close();	
 
 	return(res);
+}
+
+/*This is used to redo all modifications according to log.*/
+INDEX_NODE *
+redo_according_log(INDEX_NODE *root, LOG_INFO *log_info)
+{
+	/*Need to lock whole tree during recovery.*/
+	//apply_write_whole_tree_lock(root);
+	if(log_info->log_err)
+	{
+		cout<<"Error in log! Cannot redo modifications!\n"<<endl;
+		return(root);
+	}
+
+	LOG_LIST *cur_log;
+	/*Older the log, former in log info.*/
+	cur_log = log_info->log_list;
+	int success = 0, fail = 0, igore = 0;
+
+	while(cur_log)
+	{
+		if(cur_log->act == INSERT)
+		{
+			if(insert_node(root, cur_log->data_record))
+			{
+				success ++;
+			}
+			else
+			{
+				fail ++;
+			}
+		}
+		else if(cur_log->act == UPDATE)
+		{
+			if(update_value(root, cur_log->data_record))
+			{
+				success ++;
+                        }
+                        else
+                        {
+                                fail ++;
+			}
+		}
+		else if(cur_log->act == DELETE)
+		{
+			if(delete_node(root, cur_log->data_record->key))
+			{
+                                success ++;
+                        }
+                        else
+                        {
+                                fail ++;
+                        }
+		}
+		else
+		{
+			/*Igore others.*/
+			igore ++;
+		}
+		
+		cur_log = cur_log->next_log;
+	}
+
+	cout<<"Totally "<<(success + fail + igore)<<" logs checked."<<
+		success<<" redos successed, "<<fail<<" redos failed, "<<
+		igore<<" redos igored.\n"<<endl;
+
+	//free_write_whole_tree_lock(root);
+	return(root);
 }

@@ -11,12 +11,14 @@ using namespace std;
 
 INDEX_NODE *mk_index(DATA_RECORD_LIST *, int);
 LEAF_NODE *generate_leaf_node(DATA_RECORD_LIST *, int);
-DATA_RECORD_LIST *quik_sort(DATA_RECORD_LIST*, int);
+DATA_RECORD_LIST *quick_sort(DATA_RECORD_LIST*, int);
 LEAF_NODE *link_list(DATA_RECORD_LIST *, int);
 INDEX_NODE *generate_non_leaf(LEAF_NODE *, int);
 LEVEL_INFO *generate_level(LEVEL_INFO*);
 LEVEL_INFO *generate_rest_level(LEVEL_INFO*);
 DATA_RECORD_LIST *fetch_last_data_record_list(DATA_RECORD_LIST *, int);
+DATA_RECORD_LIST *merge_sort(DATA_RECORD_LIST*, DATA_RECORD_LIST*);
+
 
 /*This function is called during initialize.*/
 INDEX_NODE *
@@ -42,7 +44,7 @@ generate_leaf_node(DATA_RECORD_LIST *data_list, int record_num)
 	LEAF_NODE *retval;
 	DATA_RECORD_LIST *sorted_list;
 	
-	sorted_list = quik_sort(data_list, record_num);
+	sorted_list = quick_sort(data_list, record_num);
 	/*For Test.*/
 	test_list(sorted_list, record_num, OFF);
 
@@ -106,7 +108,7 @@ link_list(DATA_RECORD_LIST *data_list, int record_num)
 
 /*Quik sort to sort dara records.*/
 DATA_RECORD_LIST *
-quik_sort(DATA_RECORD_LIST *data_list, int record_num)
+quick_sort(DATA_RECORD_LIST *data_list, int record_num)
 {
 	/*Record number cannot be 0,
 	because NULL has no member.*/
@@ -204,11 +206,11 @@ quik_sort(DATA_RECORD_LIST *data_list, int record_num)
 
 	if(left)
 	{	
-		ret_left = quik_sort(left_data, left);
+		ret_left = quick_sort(left_data, left);
 	}
 	if(right)
 	{
-		ret_right = quik_sort(right_data, right);
+		ret_right = quick_sort(right_data, right);
 	}
 
 	if(left)
@@ -490,4 +492,45 @@ generate_rest_level(LEVEL_INFO *level_info)
 		test_level_info(ret_level_info, OFF); 
 	}
 	return(ret_level_info);
+}
+
+/*This is used to merge sort two sorted data list*/
+/*Two input data record list must have been sorted.*/
+DATA_RECORD_LIST *
+merge_sort(DATA_RECORD_LIST* data_list_1, DATA_RECORD_LIST *data_list_2)
+{
+	DATA_RECORD_LIST *cur_base, *cur_comp, *ret, *mov;
+	
+	if(data_list_1->data_record->key <= data_list_2->data_record->key)	
+	{
+		ret = data_list_1;
+		cur_comp = data_list_2;
+		cur_base = data_list_1;
+	}
+	else
+	{
+		ret = data_list_2;
+                cur_comp = data_list_1;
+                cur_base = data_list_2;
+	}
+	
+	mov = cur_base->next_data;
+
+	while(mov)
+	{
+		if(mov->data_record->key <= cur_comp->data_record->key)
+		{
+			cur_base = cur_base->next_data;
+			mov = mov->next_data;
+		}
+		else
+		{
+			cur_base->next_data = cur_comp;
+			cur_base = cur_base->next_data;
+			cur_comp = mov;
+			mov = cur_base->next_data;
+		}
+	}
+	
+	return(ret);
 }

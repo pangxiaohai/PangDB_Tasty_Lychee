@@ -72,7 +72,7 @@ test_init(void)
 void
 end_test(void)
 {
-	if(delete_a_tree(test_root))
+	if(delete_whole_tree(test_root))
 	{
 		cout<<"End Test Successfully!\n"<<endl;
 	}
