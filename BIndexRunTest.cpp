@@ -13,38 +13,18 @@ using namespace std;
 
 /*Declare Functions*/
 TEST_SUMMARY run_all_tests(INDEX_NODE *);
-void run_test(void);
 INDEX_NODE *test_init(void);
-void run_exist(void);
-void end_test(void);
+void run_exist(INDEX_NODE *);
+void end_test(INDEX_NODE *);
 
-
-/*Global Varibles*/
-INDEX_NODE *test_root;
-
-/*This is used to run all tests when db not setup.*/
-void
-run_test(void)
-{
-	TEST_SUMMARY result;
-	test_root = test_init();
-
-	result = run_all_tests(test_root);
-
-	cout<<"Total case number: "<<result.total_num
-		<<"\nSuccess number: "<<result.success_num
-		<<"\nFailed number: "<<result.fail_num<<"\n"<<endl;
-
-	return;
-}
 
 /*This is used to run test on exist test db.*/
 void
-run_exist(void)
+run_exist(INDEX_NODE *root)
 {
 	TEST_SUMMARY result;
 
-        result = run_all_tests(test_root);
+        result = run_all_tests(root);
 
         cout<<"Total case number: "<<result.total_num
                 <<"\nSuccess number: "<<result.success_num
@@ -70,9 +50,9 @@ test_init(void)
 
 /*This is used to end test.*/
 void
-end_test(void)
+end_test(INDEX_NODE *root)
 {
-	if(delete_whole_tree(test_root))
+	if(delete_whole_tree(root))
 	{
 		cout<<"End Test Successfully!\n"<<endl;
 	}

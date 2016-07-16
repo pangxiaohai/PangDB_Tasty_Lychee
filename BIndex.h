@@ -253,7 +253,6 @@ void free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *);
 
 /*Following for test support!*/
 RUN_RESULT run_mk_BIndex_test(INDEX_NODE *);
-void run_test(void);
 void for_test(int);
 void test_leaf_link(LEAF_NODE *, ON_OFF);
 void test_list(DATA_RECORD_LIST *, int, ON_OFF);
@@ -264,14 +263,15 @@ RUN_RESULT run_range_search_test(INDEX_NODE *);
 void draw_a_leaf(LEAF_NODE *, int);
 void draw_a_tree(INDEX_NODE *);
 DATA_RECORD_LIST *generate_random_data(int);
-void run_exist(void);
+void run_exist(INDEX_NODE *);
 RUN_RESULT run_top_bottom_test(INDEX_NODE *);
-void end_test(void);
+void end_test(INDEX_NODE *);
 RUN_RESULT run_read_test(INDEX_NODE *);
 int produce_actual_key(INDEX_NODE *, int);
 RUN_RESULT run_update_test(INDEX_NODE *);
 RUN_RESULT run_delete_test(INDEX_NODE *);
 RUN_RESULT run_insert_test(INDEX_NODE *);
+INDEX_NODE *test_init(void);
 
 /*Following for supported operations.*/
 NODE_PATH_INFO *scan_node(INDEX_NODE *, int);
@@ -326,3 +326,8 @@ DATA_INFO *exec_read_data(char *);
 BACK_INFO *search_backup_file(void);
 int write_file_according_log(char *, LOG_INFO *);
 RUN_RESULT auto_backup(void);
+
+
+
+/*Global Varibles*/
+extern INDEX_NODE *test_root;

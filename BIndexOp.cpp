@@ -630,7 +630,7 @@ exec_bottom_search(INDEX_NODE *root,int num, ASC_DSC asc_dsc)
         }
         else
         {
-                int mark = 0;
+                int mark = 1;
                 while((mark != num) && (cur_node->back_node))
                 {
                         /*
