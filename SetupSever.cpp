@@ -28,6 +28,18 @@ void run_show_data_draw_tree_operation(INDEX_NODE *);
 
 int main(void)
 {
+	cout<<"PangDB is setting up now...\n"<<endl;
+
+	if(!create_sys_files())
+	{
+		cout<<"Create system files failed!\n"<<endl;
+		return -1;
+	}
+	else
+	{
+		cout<<"Create system files successed!\n"<<endl;
+	}
+
 	setup_consol();
 	return 0;
 }

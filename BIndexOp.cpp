@@ -267,6 +267,9 @@ update_value(INDEX_NODE *root, DATA_RECORD *data_record)
 	//}
 
 	/*Do modification*/
+	node_path->end_leaf->data_record->len = data_record->len;
+	free(node_path->end_leaf->data_record->value);
+	node_path->end_leaf->data_record->value = create_n_byte_mem(data_record->len);
 	strcpy(node_path->end_leaf->data_record->value, data_record->value);
 	
 	/*Free write lock*/
@@ -1439,7 +1442,7 @@ insert_to_file(char *filename, DATA_RECORD *data_record)
 	int value_len;
 
 	sprintf(key_buf, "%10d", data_record->key);
-	value_len = strlen(data_record->value);
+	value_len = data_record->len;
         sprintf(data_buf,"%10d%3d", value_len, data_record->value);
 	
 	file<<key_buf<<data_buf<<DATA_END<<endl;
@@ -1491,7 +1494,7 @@ update_to_file(char *filename, DATA_RECORD *data_record)
         	int value_len;
 
 	        sprintf(key_buf, "%10d", data_record->key);
-        	value_len = strlen(data_record->value);
+        	value_len = data_record->len;
         	sprintf(data_buf,"%10d%3d", value_len, data_record->value);
 
         	file<<key_buf<<data_buf<<DATA_END<<endl;
@@ -1510,14 +1513,16 @@ update_to_file(char *filename, DATA_RECORD *data_record)
 RUN_RESULT
 exec_delete_from_file(DATA_RECORD *data_record, fstream &file)
 {
-        char value_len[3], key_buf[10], value_buf[MAXLENGTH], end_buf[8];
+        char value_len[3], key_buf[10], end_buf[8];
         int key, delete_done = 0, len;
 
         while(!file.eof())
         {
+		char *value_buf;
                 file.read(key_buf, 10);
                 file.read(value_len, 3);
                 sscanf(value_len, "%d", len);
+		value_buf = create_n_byte_mem(len);
                 file.read(value_buf, len);
                 file.read(end_buf, 8);
 
@@ -1530,7 +1535,8 @@ exec_delete_from_file(DATA_RECORD *data_record, fstream &file)
                         delete_done = 1;
                         break;
                 }
-
+		free(value_buf);
+		value_buf = NULL;
         }
 
         if(!delete_done)

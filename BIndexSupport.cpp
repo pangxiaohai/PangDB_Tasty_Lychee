@@ -45,6 +45,8 @@ SUB_TREE_INFO_LINK *create_sub_tree_info_link_mem(void);
 void free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *);
 //DEPTH_INFO *create_depth_info_mem(void);
 //void free_depth_info_mem(DEPTH_INFO *);
+RUN_RESULT create_sys_files(void);
+char *create_n_byte_mem(int);
 
 
 /*This is used to determine the node type.*/
@@ -532,3 +534,71 @@ free_depth_info_mem(DEPTH_INFO *depth)
 	return;
 }
 */
+
+/*This is used to create  system files.*/
+RUN_RESULT
+create_sys_files(void)
+{
+	FILE *fp1, *fp2, *fp3, *fp4, *fp5;
+
+	fp1 = fopen(LOG_FILE, "w");
+	if(!fp1)
+	{
+		cout<<"Create log file failed!\n"<<endl;
+		return(RUN_FAILED);
+	}
+	else
+	{
+		cout<<"Create log file successed!\n"<<endl;
+	}
+	fclose(fp1);	
+
+	fp2 = fopen(BACK_FILE1, "w");
+        fp3 = fopen(BACK_FILE2, "w");
+	if((!fp2) || (!fp3))
+        {
+                cout<<"Create backup file failed!\n"<<endl;
+                return(RUN_FAILED);
+        }
+	else
+        {
+                cout<<"Create backup file successed!\n"<<endl;
+        }
+	fclose(fp2);
+	fclose(fp3);
+
+	fp4 = fopen(BACK_LOG, "w");
+	if(!fp4)
+        {
+                cout<<"Create backup log file failed!\n"<<endl;
+                return(RUN_FAILED);
+        }
+	else
+        {
+                cout<<"Create backup log file successed!\n"<<endl;
+        }
+	fclose(fp4);
+
+	fp5 = fopen(LAST_LOG, "w");
+	if(!fp5)
+        {
+                cout<<"Create last backup log file failed!\n"<<endl;
+                return(RUN_FAILED);
+        }
+	else
+        {
+                cout<<"Create last backup log file successed!\n"<<endl;
+        }
+	fclose(fp5);
+
+	return(RUN_SUCCESS);
+}
+
+/*This is used to create n char memory.*/
+char *
+create_n_byte_mem(int num)
+{
+	char *ret;
+	ret = (char *)malloc(num * sizeof(char));
+	return(ret);
+}

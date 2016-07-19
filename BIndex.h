@@ -7,7 +7,6 @@ using namespace std;
 
 #define MAXKEYNUM 4
 #define LEAST_P_NUM (short)(ceil(MAXKEYNUM/2)+1)
-#define MAXLENGTH 256
 #define ALL_REST_NODES -1
 #define NO_LOCK 0
 #define READ_LOCK 1
@@ -57,7 +56,8 @@ typedef int PID;
 typedef struct data_record
 {
 	int key;
-	char value[MAXLENGTH];
+	int len;
+	char *value;
 } DATA_RECORD;
 
 typedef struct data_record_list
@@ -200,6 +200,7 @@ typedef struct depth_info{
 
 /*Following for initialization.*/
 INDEX_NODE *mk_index(DATA_RECORD_LIST *, int);
+RUN_RESULT create_sys_files(void);
 
 /*Following for generating index support.*/
 LEAF_NODE *generate_leaf_node(DATA_RECORD_LIST *, int);
@@ -234,6 +235,7 @@ DATA_INFO *create_data_info_mem(void);
 SUB_TREE_LIST_INFO *create_sub_tree_list_info_mem(void);
 SUB_TREE_INFO_LINK *create_sub_tree_info_link_mem(void);
 //DEPTH_INFO *create_depth_info_mem(void);
+char *create_n_byte_mem(int);
 
 /*Following for memory free.*/
 void free_index_node_link_mem(INDEX_NODE_LINK *);
@@ -327,7 +329,8 @@ BACK_INFO *search_backup_file(void);
 int write_file_according_log(char *, LOG_INFO *);
 RUN_RESULT auto_backup(void);
 
-
+/*Following for log and backup test.*/
+RUN_RESULT run_log_write_read_test(INDEX_NODE *);
 
 /*Global Varibles*/
 extern INDEX_NODE *test_root;

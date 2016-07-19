@@ -37,7 +37,7 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 	int  value_len, res_len;
 	char log_buf[30];
 
-	value_len = strlen(data->value);
+	value_len = data->len;
 	res_len = value_len + 25;
 	sprintf(log_buf,"%10d%3d%6d%1d%10d", now, res_len, user, act, data->key);
 	write_log<<log_buf<<data->value<<LOG_END<<endl;
@@ -72,7 +72,6 @@ exec_read_log(time_t search_time)
 	char user_buf[6];
 	char act_buf[1];
 	char key_buf[10];
-	char value_buf[MAXLENGTH];
 	char end_buf[8];
 	char log_time[10], res_len[3];
 	while(!read_log.eof())
@@ -89,6 +88,8 @@ exec_read_log(time_t search_time)
 		read_log.read(user_buf, 6);
 		read_log.read(act_buf, 1);
 		read_log.read(key_buf, 10);
+
+		char *value_buf = create_n_byte_mem(length);
 		read_log.read(value_buf, length);
 		read_log.read(end_buf, 8);
 
@@ -129,7 +130,9 @@ exec_read_log(time_t search_time)
 				cur_log = cur_log->next_log;
 				res->total_num ++;
 			}
-		
+	
+			free(value_buf);
+			value_buf = NULL;	
 		}
 	}
 	

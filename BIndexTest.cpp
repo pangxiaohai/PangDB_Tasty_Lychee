@@ -127,10 +127,13 @@ run_update_test(INDEX_NODE *root)
 	data2 = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
 	data3 = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
 
+	int len = strlen(str);
+	data1->value = create_n_byte_mem(len);
 	/*Update Test 1.*/
 	int rand_key1 = (int)(rand()%KEY_RANGE);
 	data1->key = rand_key1;
 	strcpy(data1->value, str);
+	data1->len = len;
 	
         cout<<"Update test1:\n"<<"Update value with a random key: "<<rand_key1
                 <<"\nThis key may not exsit.\n"<<endl;
@@ -140,12 +143,18 @@ run_update_test(INDEX_NODE *root)
 		read_value(root, rand_key1);
 		cout<<"Value has been changed!\n"<<endl;
 	}
+	free(data1->value);
+	data1->value = NULL;
+	free(data1);
+	data1 = NULL;
 	
 	 /*Update Test 2.*/
         int near_key2 = (int)(rand()%KEY_RANGE), act_key2;
         act_key2 = produce_actual_key(root, near_key2);
 	data2->key = act_key2;
+	data2->value = create_n_byte_mem(len);
 	strcpy(data2->value, str);
+	data2->len = len;
 
         cout<<"Update test2:\n"<<"Update value with an actual key: "<<act_key2<<endl;
         if(update_value(root, data2))
@@ -153,6 +162,10 @@ run_update_test(INDEX_NODE *root)
 		read_value(root, act_key2);
                 cout<<"Value has been changed!\n"<<endl;
 	}
+	free(data2->value);
+	data2->value = NULL;
+	free(data2);
+	data2 = NULL;
 
 	/*Update Test 3.*/
         int near_key3 = (int)(rand()%KEY_RANGE), act_key3;
@@ -161,7 +174,9 @@ run_update_test(INDEX_NODE *root)
 
 	LEAF_NODE *leaf;
 	leaf = exec_read_value(root, act_key3);
+	data3->value = create_n_byte_mem(len);
 	strcpy(data3->value, leaf->data_record->value);
+	data3->len = len;
 
         cout<<"Update test3:\n"<<"Update value with an actual"
 		<<" key and its original value: "<<act_key3<<endl;
@@ -231,12 +246,15 @@ RUN_RESULT
 run_insert_test(INDEX_NODE *root)
 {
 	char insert_str[] = "Insert Value";
+	int len = strlen(insert_str);
 
 	/*Insert Test 1*/
         int key1 = (int)(rand()%KEY_RANGE);
 	DATA_RECORD *data1 = create_data_record_mem();
 	
 	data1->key = key1;
+	data1->value = create_n_byte_mem(len);
+	data1->len = len;
 	strcpy(data1->value, insert_str);
 	
         cout<<"Insert test1:\n"<<"Insert data with key: "<<key1
@@ -257,6 +275,8 @@ run_insert_test(INDEX_NODE *root)
 	DATA_RECORD *data2 = create_data_record_mem();
 
         data2->key = key2;
+	data2->value = create_n_byte_mem(len);
+	data2->len = len;;
         strcpy(data2->value, insert_str);
 
         cout<<"Insert test2:\n"<<"Insert data with key: "<<key2
@@ -268,12 +288,19 @@ run_insert_test(INDEX_NODE *root)
                 cout<<"No value inserted!\n"<<endl;
         }
 
+	free(data2->value);
+	data2->value = NULL;
+	free(data2);
+	data2 = NULL;
+
         /*Insert Test 3*/
         int near_key3 = (int)(rand()%(KEY_RANGE/10)), act_key3;
         act_key3 = produce_actual_key(root, near_key3);
 	
 	DATA_RECORD *data3 = create_data_record_mem();
         data3->key = act_key3;
+	data3->value = create_n_byte_mem(len);
+	data3->len = len;
         strcpy(data3->value, insert_str);
 
 	cout<<"Insert test3:\n"<<"Insert data with key: "<<data3->key
@@ -300,7 +327,17 @@ run_insert_test(INDEX_NODE *root)
 	data5->key = key5;
 	data6->key = key6;
 	data7->key = key7;
-
+	
+	data4->len = len;
+	data5->len = len;
+	data6->len = len;
+	data7->len = len;
+	
+	data4->value = create_n_byte_mem(len);
+	data5->value = create_n_byte_mem(len);
+	data6->value = create_n_byte_mem(len);
+	data7->value = create_n_byte_mem(len);
+	
 	strcpy(data4->value, insert_str);
 	strcpy(data5->value, insert_str);
 	strcpy(data6->value, insert_str);
@@ -368,7 +405,9 @@ generate_random_data(int data_num)
 	
 	cur_data = create_data_record_list_mem();
 	new_record = create_data_record_mem();
-
+	
+	new_record->len = 8;
+	new_record->value = create_n_byte_mem(8);
 	new_record->key = (int)(rand()%KEY_RANGE);
 	sprintf(new_record->value, "%x", rand());
 
@@ -376,14 +415,20 @@ generate_random_data(int data_num)
 	cur_data->next_data = NULL;
 	ret_list = cur_data;
 
+	int len;
+
 	for(int i = 1; i != data_num; i++)
 	{
 		new_data = create_data_record_list_mem();
 		new_record = create_data_record_mem();
 
 		new_record->key = (int)(rand()%KEY_RANGE);
-        	sprintf(new_record->value, "%x", rand());
+		len = 8;
+		new_record->len = len;
+		new_record->value = create_n_byte_mem(8);
 	
+        	sprintf(new_record->value, "%d", (10000000+(int)(rand()%90000000)));
+
 		new_data->data_record = new_record;
 		new_data->next_data = NULL;
 		cur_data->next_data = new_data;

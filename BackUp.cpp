@@ -83,24 +83,30 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 
 	time_t begin_time;
 	int value_len;
-	char data_buf[13];
 
 	time(&begin_time);
 	//free_read_lock(node_path);
 	cur_leaf = node_path->end_leaf;
 	while(cur_leaf)
 	{
-		value_len = strlen(cur_leaf->data_record->value);
+		char *data_buf = create_n_byte_mem(13);
+		value_len = cur_leaf->data_record->len;
 		sprintf(data_buf,"%10d%3d", cur_leaf->data_record->key, value_len);
-		write_file<<data_buf<<cur_leaf->data_record->value<<DATA_END<<endl;
+		write_file.write(data_buf,13);
+		write_file.write(cur_leaf->data_record->value, value_len);
+		write_file.write(DATA_END, 8);
 		
+		free(data_buf);
+		data_buf = NULL;
 		//free_read_leaf_lock(cur_leaf);
 		cur_leaf = cur_leaf->back_node;
 	}
 
 	char back_time[10];
 	sprintf(back_time, "%10d", begin_time);
-	back_log<<back_time<<file_name<<BACK_END<<endl;
+	back_log.write(back_time, 10);
+	back_log.write(file_name, 12);
+	back_log.write(BACK_END, 8);
 
 	/*Only last time backup will record in this file*/
 	/*It is used for fast recovery. If it lost, system will check back log.*/
@@ -108,7 +114,9 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 	if(last_log)
 	{
 		sprintf(back_time, "%10d", begin_time);
-        	last_log<<back_time<<file_name<<BACK_END<<endl;
+		last_log.write(back_time, 10);
+        	last_log.write(file_name, 12);
+        	last_log.write(BACK_END, 8);
 		last_log.close();
 	}
 
@@ -412,34 +420,59 @@ exec_read_data(char *file_name)
 		return(NULL);
 	}
 
-	char key_buf[10];
-	char value_len[3];
-	char value[MAXLENGTH];
-	char end_mark[8];
 	int key, len, is_first = 1, num = 0;
 
 	DATA_RECORD_LIST *res, *new_data, *cur_data;
 	res = create_data_record_list_mem();
 	DATA_RECORD *new_record;
 
+	char key_buf[10];
+	char value_len[3];
+	int min_key = KEY_RANGE + 1;
+	int max_key = 0;
+
 	while(!read_data.eof())
 	{
+		char *end_mark = create_n_byte_mem(8);
 		read_data.read(key_buf, 10);
-		read_data.read(value_len,3);
-		sscanf(key_buf, "%d", &key);
-		sscanf(value_len, "%d", &len);
 		
+		/*Must fix the key here, since may copy unwanted char from memory.*/
+		char *key_fix = create_n_byte_mem(10);
+		strncpy(key_fix, key_buf, 10);
+		
+		read_data.read(value_len, 3);
+
+		/*Fix the length too.*/
+		char *len_fix = create_n_byte_mem(3);
+		strncpy(len_fix, value_len, 3);
+
+		sscanf(key_fix, "%10d", &key);
+		sscanf(len_fix, "%3d", &len);
+
+		char *value;
+		value = create_n_byte_mem(len);
 		read_data.read(value, len);
 		read_data.read(end_mark, 8);
-		
+
+	
 		/*This is a right data record, recover it.
 		Otherwise, ignore it.*/
-		if((!strcmp(end_mark, DATA_END)) && (!key))
+		if(!strcmp(end_mark, DATA_END))
 		{
 			new_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
 			new_record->key = key;
-			strcpy(new_record->value, value);
+			new_record->value = create_n_byte_mem(len);
+			strncpy(new_record->value, value, len);
 			num ++;
+			
+			if(key > max_key)
+			{
+				max_key = key;
+			}
+			if(key < min_key)
+			{
+				min_key = key;
+			}
 
 			if(is_first)
 			{
@@ -457,17 +490,26 @@ exec_read_data(char *file_name)
 				cur_data = cur_data->next_data;
 			}
 		}
+
+		free(key_fix);
+		key_fix = NULL;
+		free(len_fix);
+		len_fix = NULL;
+		free(value);
+		value = NULL;
+		free(end_mark);
+		end_mark = NULL;
 	}
 
 	DATA_INFO *data_info;
 	
-	if(!num)
+	if(num)
 	{
 		data_info = create_data_info_mem();
 		data_info->data_list = res;
 		data_info->num = num;
-		data_info->max_key = -1;
-		data_info->min_key = -1;	
+		data_info->max_key = max_key;
+		data_info->min_key = min_key;	
 	}
 	else
 	{
