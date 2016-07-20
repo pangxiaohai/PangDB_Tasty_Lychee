@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define TOTAL_CASE 23
+#define TOTAL_CASE 25
 #define TESTDATANUM 100
 
 
@@ -139,9 +139,19 @@ run_all_tests(INDEX_NODE *root)
                 result.fail_num +=4;
         }
 
-	/*Log write and read test.*/
-	if(run_log_write_read_test(root))
+	/*Backup write and read test.*/
+	if(run_backup_write_read_test(root))
 	{
+                result.success_num +=2;
+        }
+        else
+        {
+                result.fail_num +=2;
+        }
+
+        /*Log write and read test.*/
+        if(run_log_write_read_test(root))
+        {
                 result.success_num +=1;
         }
         else

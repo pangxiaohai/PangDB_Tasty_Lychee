@@ -271,6 +271,8 @@ update_value(INDEX_NODE *root, DATA_RECORD *data_record)
 	free(node_path->end_leaf->data_record->value);
 	node_path->end_leaf->data_record->value = create_n_byte_mem(data_record->len);
 	strcpy(node_path->end_leaf->data_record->value, data_record->value);
+
+	exec_write_log(FAKE_PID, UPDATE, data_record);
 	
 	/*Free write lock*/
 	//free_write_node_lock(write_lock_analyze->index_link);
@@ -1000,6 +1002,8 @@ delete_node(INDEX_NODE *root, int key)
 	INDEX_NODE *target_node = (INDEX_NODE *)target_leaf;
 	exec_delete_a_sub_tree(root, cur_linked_index, FALSE, 
 		target_node, front_leaf, back_leaf, target_leaf);
+
+	exec_write_log(FAKE_PID, DELETE, node_path_info->end_leaf->data_record);
 		
 	/*
         free_write_index_lock(analyze_res->index_link);
@@ -1112,6 +1116,8 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
 	}
 
 	exec_insert_index_node(root, cur_link, new_node);
+
+	exec_write_log(FAKE_PID, INSERT, data_record);
 
 	/*
 	free_write_index_lock(analyze_res->index_link);
@@ -1438,14 +1444,17 @@ insert_to_file(char *filename, DATA_RECORD *data_record)
 		return(RUN_FAILED);
 	}
 
-	char data_buf[13], key_buf[10];
+	char key_buf[10], len_buf[3];
 	int value_len;
 
 	sprintf(key_buf, "%10d", data_record->key);
 	value_len = data_record->len;
-        sprintf(data_buf,"%10d%3d", value_len, data_record->value);
-	
-	file<<key_buf<<data_buf<<DATA_END<<endl;
+        sprintf(len_buf,"%3d", value_len, 3);
+
+	file.write(key_buf, 10);
+	file.write(len_buf, 3);
+	file.write(data_record->value, value_len);
+	file.write(DATA_END, 8);
 	
 	file.close();
 	
@@ -1490,14 +1499,17 @@ update_to_file(char *filename, DATA_RECORD *data_record)
 	if(exec_delete_from_file(data_record, file))
 	{
 		file.seekg(0,ios::end);
-		char data_buf[13], key_buf[10];
+		char len_buf[3], key_buf[10];
         	int value_len;
 
 	        sprintf(key_buf, "%10d", data_record->key);
         	value_len = data_record->len;
-        	sprintf(data_buf,"%10d%3d", value_len, data_record->value);
+        	sprintf(len_buf,"%3d", value_len);
 
-        	file<<key_buf<<data_buf<<DATA_END<<endl;
+		file.write(key_buf,10);
+		file.write(len_buf,3);
+		file.write(data_record->value, value_len);
+		file.write(DATA_END, 8);
 
         	file.close();
 
@@ -1531,7 +1543,7 @@ exec_delete_from_file(DATA_RECORD *data_record, fstream &file)
                         && (strcmp(end_buf, INVALID)))
                 {
                         file.seekg(-8, ios::cur);
-                        file << INVALID << endl;
+                        file.write(INVALID, 8);
                         delete_done = 1;
                         break;
                 }

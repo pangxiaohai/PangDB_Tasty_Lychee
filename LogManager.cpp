@@ -14,7 +14,7 @@ using namespace std;
 
 
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
-LOG_INFO *exec_read_log(time_t);
+LOG_INFO *exec_read_log(int);
 INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
 
 
@@ -23,8 +23,8 @@ INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
 RUN_RESULT 
 exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 {
-	time_t now;
-	time(&now);
+	int now;
+	now = time((time_t *)NULL);
 	
 	ofstream write_log(LOG_FILE, ios::app);
 	
@@ -40,14 +40,16 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 	value_len = data->len;
 	res_len = value_len + 25;
 	sprintf(log_buf,"%10d%3d%6d%1d%10d", now, res_len, user, act, data->key);
-	write_log<<log_buf<<data->value<<LOG_END<<endl;
+	write_log.write(log_buf, 30);
+	write_log.write(data->value, value_len);
+	write_log.write(LOG_END, 8);
 	write_log.close();
 	return(RUN_SUCCESS);
 }
 
 /*This is used to execute read log.*/
 LOG_INFO *
-exec_read_log(time_t search_time)
+exec_read_log(int search_time)
 {
 	LOG_INFO *res;
 	res = create_log_info_mem();
@@ -72,24 +74,46 @@ exec_read_log(time_t search_time)
 	char user_buf[6];
 	char act_buf[1];
 	char key_buf[10];
-	char end_buf[8];
+	char end_buf[9];
+	end_buf[8] = '\0';
 	char log_time[10], res_len[3];
-	while(!read_log.eof())
+	while(read_log.read(log_time,10))
 	{
-		read_log.read(log_time, 10);
 		read_log.read(res_len, 3);
 		
-		long trans_time;
+		int trans_time;
 		int length;
-		sscanf(log_time, "%d", &trans_time);
-		sscanf(res_len, "%d", &length);
+		
+		/*Need to fix the result in memory.*/
+                char *fix_time = create_n_byte_mem(10);
+		strncpy(fix_time, log_time, 10);
+		char *fix_len = create_n_byte_mem(3);
+		strncpy(fix_len, res_len, 3);
+
+		sscanf(fix_time, "%10d", &trans_time);
+		
+		sscanf(fix_len, "%3d", &length);
 		length = length - 25;
+
+		free(fix_time);
+		free(fix_len);
+		fix_time = NULL;
+		fix_len = NULL;
 
 		read_log.read(user_buf, 6);
 		read_log.read(act_buf, 1);
 		read_log.read(key_buf, 10);
+		
+		/*Fix the data in memory.*/
+		char *fix_user = create_n_byte_mem(6);
+		strncpy(fix_user, user_buf, 6);
+		char *fix_act = create_n_byte_mem(1);
+		strncpy(fix_act, act_buf, 1);
+		char *fix_key = create_n_byte_mem(10);
+		strncpy(fix_key, key_buf, 10);
 
-		char *value_buf = create_n_byte_mem(length);
+		char *value_buf = create_n_byte_mem(length+1);
+		value_buf[length] = '\0';
 		read_log.read(value_buf, length);
 		read_log.read(end_buf, 8);
 
@@ -97,6 +121,14 @@ exec_read_log(time_t search_time)
 		{
 			cout<<"Log Error!\n"<<endl;
 			res->log_err = TRUE;
+			free(fix_user);
+			free(fix_act);
+			free(fix_key);
+			free(value_buf);
+			fix_user = NULL;
+			fix_act = NULL;
+			fix_key = NULL;
+			value_buf = NULL;
 			return(res);
 		}
 
@@ -104,14 +136,24 @@ exec_read_log(time_t search_time)
 		if(trans_time >= search_time)
 		{
 			new_log = create_log_list_mem();
-			sscanf(user_buf, "%d", &(new_log->user));
-			sscanf(act_buf, "%d", &(new_log->act));
+			sscanf(fix_user, "%6d", &(new_log->user));
+			sscanf(fix_act, "%1d", &(new_log->act));
+
+			free(fix_user);
+                        free(fix_act);
+                        fix_user = NULL;
+                        fix_act = NULL;
+
 			new_log->time = trans_time;
 	
 			DATA_RECORD *new_record;
 			new_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
-			sscanf(key_buf, "%d", &(new_record->key));
-			strcpy(new_record->value, value_buf);
+			sscanf(fix_key, "%10d", &(new_record->key));
+			free(fix_key);
+			fix_key = NULL;
+		
+			new_record->value = create_n_byte_mem(length+1);
+			strncpy(new_record->value, value_buf,length+1);
 			new_log->data_record = new_record;
 			new_log->next_log = NULL;
 		
@@ -130,10 +172,9 @@ exec_read_log(time_t search_time)
 				cur_log = cur_log->next_log;
 				res->total_num ++;
 			}
-	
-			free(value_buf);
-			value_buf = NULL;	
 		}
+		free(value_buf);
+		value_buf = NULL;
 	}
 	
 	read_log.close();	

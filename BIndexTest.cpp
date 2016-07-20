@@ -426,8 +426,9 @@ generate_random_data(int data_num)
 		len = 8;
 		new_record->len = len;
 		new_record->value = create_n_byte_mem(8);
-	
-        	sprintf(new_record->value, "%d", (10000000+(int)(rand()%90000000)));
+        	
+		sprintf(new_record->value, "%d", (10000000+(int)(rand()%90000000)));
+
 
 		new_data->data_record = new_record;
 		new_data->next_data = NULL;

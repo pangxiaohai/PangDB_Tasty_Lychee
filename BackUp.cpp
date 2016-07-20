@@ -81,10 +81,10 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 	}
 	*/
 
-	time_t begin_time;
+	int begin_time;
 	int value_len;
 
-	time(&begin_time);
+	begin_time = time((time_t *)NULL);
 	//free_read_lock(node_path);
 	cur_leaf = node_path->end_leaf;
 	while(cur_leaf)
@@ -186,7 +186,7 @@ auto_backup(void)
 	is_auto_backup = TRUE;
 
 	BACK_INFO *back_info;
-	time_t exec_time;
+	int exec_time;
 
         back_info = search_backup_info();
 
@@ -207,7 +207,7 @@ auto_backup(void)
 	LOG_INFO *commit_log;
         commit_log = exec_read_log(back_info->begin_time);
 	
-	time(&exec_time);
+	exec_time = time((time_t *)NULL);
 
 	int success_num;
 	success_num = write_file_according_log(back_info->filename, commit_log);
@@ -221,7 +221,9 @@ auto_backup(void)
         if(last_log)
         {
                 sprintf(back_time, "%10d", exec_time);
-                last_log<<back_time<<back_info->filename<<BACK_END<<endl;
+		last_log.write(back_time, 10);
+		last_log.write(back_info->filename, 12);
+		last_log.write(BACK_END, 8);
                 last_log.close();
         }
 
@@ -230,7 +232,9 @@ auto_backup(void)
 	if(back_log)
         {
                 sprintf(back_time, "%10d", exec_time);
-                back_log<<back_time<<back_info->filename<<BACK_END<<endl;
+		back_log.write(back_time, 10);
+		back_log.write(back_info->filename, 12);
+		back_log.write(BACK_END, 8);
                 back_log.close();
         }
 
@@ -317,7 +321,6 @@ BACK_INFO *
 search_backup_info(void)
 {
         char end_mark[8], begin_time[10];
-        time_t begin_time_int;
         int found_file = 0;
         BACK_INFO *back_info;
 
@@ -329,8 +332,9 @@ search_backup_info(void)
                 read_last.read(begin_time, 10);
                 read_last.read(back_info->filename, 12);
                 read_last.read(end_mark, 8);
-                sscanf(begin_time, "%d", begin_time_int);
-                back_info->begin_time = begin_time_int;
+		int back_time;
+		sscanf(begin_time, "%10d", &back_time);
+                back_info->begin_time = back_time;
                 found_file = 1;
                 read_last.close();
         }
@@ -369,7 +373,6 @@ search_backup_file(void)
 	res = (BACK_INFO *)malloc(sizeof(BACK_INFO));
 
 	char name_buf[12], end_mark[8], begin_time[10];
-        time_t begin_time_int;
 	int is_avaliable = 0;
 
 	while(!back_log.eof())
@@ -382,9 +385,10 @@ search_backup_file(void)
 			((!strcmp(name_buf, BACK_FILE1)) 
 				|| (!strcmp(name_buf, BACK_FILE1))))
 		{
+			int back_time;
+			sscanf(begin_time, "%10d", back_time);
 			/*This is an available log.*/
-			sscanf(begin_time, "%d", begin_time_int);
-	                res->begin_time = begin_time_int;
+	                res->begin_time = back_time;
 
 			strcpy(res->filename, name_buf);
 			is_avaliable = 1;
@@ -431,10 +435,9 @@ exec_read_data(char *file_name)
 	int min_key = KEY_RANGE + 1;
 	int max_key = 0;
 
-	while(!read_data.eof())
+	while(read_data.read(key_buf, 10))
 	{
 		char *end_mark = create_n_byte_mem(8);
-		read_data.read(key_buf, 10);
 		
 		/*Must fix the key here, since may copy unwanted char from memory.*/
 		char *key_fix = create_n_byte_mem(10);

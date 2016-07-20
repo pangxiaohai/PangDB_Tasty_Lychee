@@ -14,6 +14,7 @@ using namespace std;
 #define LEAF_NODE_TYPE (unsigned char)0
 #define INDEX_NODE_TYPE (unsigned char)1
 #define KEY_RANGE 100000
+#define FAKE_PID 100
 
 
 /*For file operations*/
@@ -146,7 +147,7 @@ typedef struct test_summary{
 
 typedef struct log_list{
 	PID user;
-	time_t time;
+	int time;
 	ACTION act;
 	DATA_RECORD *data_record;
 	struct log_list *next_log;
@@ -155,12 +156,12 @@ typedef struct log_list{
 typedef struct log_info{
 	LOG_LIST *log_list;
 	int total_num;
-	time_t begin_time;
+	int begin_time;
 	IDX_BOOL log_err;
 } LOG_INFO;
 
 typedef struct back_info{
-	time_t begin_time;
+	int begin_time;
 	char filename[12];
 } BACK_INFO;
 
@@ -316,7 +317,7 @@ DATA_INFO *fetch_leaf_list_data_info(LEAF_NODE *, LEAF_NODE *);
 
 /*Following for log operations.*/
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
-LOG_INFO *exec_read_log(time_t);
+LOG_INFO *exec_read_log(int);
 INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
 
 
@@ -330,6 +331,7 @@ int write_file_according_log(char *, LOG_INFO *);
 RUN_RESULT auto_backup(void);
 
 /*Following for log and backup test.*/
+RUN_RESULT run_backup_write_read_test(INDEX_NODE *);
 RUN_RESULT run_log_write_read_test(INDEX_NODE *);
 
 /*Global Varibles*/
