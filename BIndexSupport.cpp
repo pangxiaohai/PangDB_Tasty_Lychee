@@ -2,6 +2,9 @@
 #include"./BIndex.h"
 #include<math.h>
 #include<stdlib.h>
+#include<string>
+#include<string.h>
+
 
 using namespace std;
 
@@ -47,6 +50,8 @@ void free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *);
 //void free_depth_info_mem(DEPTH_INFO *);
 RUN_RESULT create_sys_files(void);
 char *create_n_byte_mem(int);
+ACTION get_action(int);
+IDX_BOOL is_pure_digit(string);
 
 
 /*This is used to determine the node type.*/
@@ -155,6 +160,44 @@ check_duplicate_data(DATA_RECORD_LIST *data_list, SORT_STAT sort_unsort)
 		return(res);
 	}
 }
+
+/*This is used to get related actions for log.*/
+ACTION
+get_action(int act)
+{
+	switch(act)
+	{
+		case 0:
+			return(READ);
+		case 1:
+			return(INSERT);
+		case 2:
+			return(UPDATE);
+		case 3:
+			return(DELETE);
+		default:
+			return(UNDEFINED);
+	}
+}
+
+/*This is used to check digital string.*/
+IDX_BOOL
+is_pure_digit(string input)
+{
+	IDX_BOOL ret = TRUE;
+	for(string::iterator it = input.begin(); it != input.end(); ++it)
+	{
+		if(*it > '9' || *it <'0')
+		{
+			ret = FALSE;
+			break;
+		}
+	}
+	
+	return(ret);
+}
+
+/*Following functions are used to create and free memory.*/
 
 /*This is used for memory allocate for new leaf node.*/
 LEAF_NODE *
@@ -375,6 +418,8 @@ free_a_tree_mem(INDEX_NODE *root)
 	{
 		LEAF_NODE *leaf;
 		leaf = (LEAF_NODE *)root;
+		free(leaf->data_record->value);
+		free(leaf->data_record);
 		free(leaf);
 		leaf = NULL;
 		root = NULL;
@@ -426,6 +471,8 @@ free_log_list_mem(LOG_LIST *log_list)
 	{
 		target_log = cur_log;
 		cur_log = cur_log->next_log;
+		free(target_log->data_record->value);
+		free(target_log->data_record);
 		free(target_log);
 	}
 
@@ -439,7 +486,7 @@ free_log_list_mem(LOG_LIST *log_list)
 void
 free_log_info_mem(LOG_INFO *log_info)
 {
-	free(log_info->log_list);
+	free_log_list_mem(log_info->log_list);
 	free(log_info);
 	log_info = NULL;
 	return;

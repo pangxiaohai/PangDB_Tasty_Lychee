@@ -1455,7 +1455,8 @@ insert_to_file(char *filename, DATA_RECORD *data_record)
 	file.write(len_buf, 3);
 	file.write(data_record->value, value_len);
 	file.write(DATA_END, 8);
-	
+
+	file.clear();	
 	file.close();
 	
 	return(RUN_SUCCESS);
@@ -1474,12 +1475,14 @@ delete_from_file(char *filename, DATA_RECORD *data_record)
 
 	if(!exec_delete_from_file(data_record, file))
 	{
+		file.clear();
 		file.close();
 		cout<<"Cannot find record!\n"<<endl;
 		return(RUN_FAILED);
 	}
 	else
 	{
+		file.clear();
 		file.close();
 		return(RUN_SUCCESS);
 	}
@@ -1510,7 +1513,8 @@ update_to_file(char *filename, DATA_RECORD *data_record)
 		file.write(len_buf,3);
 		file.write(data_record->value, value_len);
 		file.write(DATA_END, 8);
-
+		
+		file.clear();
         	file.close();
 
         	return(RUN_SUCCESS);

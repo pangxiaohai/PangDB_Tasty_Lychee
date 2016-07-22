@@ -48,7 +48,7 @@ enum FIRST_OR_LAST {FIRST_NODE = 0, LAST_NODE = 1};
 
 enum SUB_UP {SUB_MARK = 0, UP_MARK = 1};
 
-enum ACTION {READ = 0, INSERT = 1, UPDATE = 2 , DELETE = 3};
+enum ACTION {READ = 0, INSERT = 1, UPDATE = 2 , DELETE = 3, UNDEFINED = -1};
 
 enum SORT_STAT {UNSORT = 0, SORT = 1};
 
@@ -217,6 +217,8 @@ DATA_RECORD_LIST *quick_sort(DATA_RECORD_LIST*, int);
 IDX_BOOL is_leaf_node(INDEX_NODE *);
 DATA_INFO *get_data_info(DATA_RECORD_LIST *);
 IDX_BOOL check_duplicate_data(DATA_RECORD_LIST *, SORT_STAT);
+ACTION get_action(int);
+IDX_BOOL is_pure_digit(string);
 
 /*Following for memory allocate.*/
 LEAF_NODE *create_leaf_mem(void);
@@ -319,7 +321,7 @@ DATA_INFO *fetch_leaf_list_data_info(LEAF_NODE *, LEAF_NODE *);
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
 LOG_INFO *exec_read_log(int);
 INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
-
+LOG_INFO *read_recent_logs(int);
 
 /*Following for backup and recorvery.*/
 RUN_RESULT exec_write_all_data(INDEX_NODE *, char *);
@@ -333,6 +335,8 @@ RUN_RESULT auto_backup(void);
 /*Following for log and backup test.*/
 RUN_RESULT run_backup_write_read_test(INDEX_NODE *);
 RUN_RESULT run_log_write_read_test(INDEX_NODE *);
+RUN_RESULT run_read_recent_log_test(INDEX_NODE *);
+void print_log_details(LOG_INFO *);
 
 /*Global Varibles*/
 extern INDEX_NODE *test_root;

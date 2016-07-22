@@ -372,7 +372,7 @@ generate_non_leaf(LEAF_NODE *leaf_node_list, int record_num)
 LEVEL_INFO * 
 generate_level(LEVEL_INFO *level_info)
 {
-	int left_node = level_info->node_num, ret_num = 0, mark;
+	int left_node = level_info->node_num, ret_num = 0, mark = 0;
 	NODE_INFO *ret_node_info, *cur_node_info, *new_node_info;
 	INDEX_NODE *new_node;
 	

@@ -2,6 +2,8 @@
 #include"./BIndex.h"
 #include<math.h>
 #include<stdlib.h>
+#include<string>
+#include<string.h>
 
 
 using namespace std;
@@ -24,6 +26,8 @@ void run_bottom_search_operation(INDEX_NODE *);
 void run_batch_insert_operation(INDEX_NODE *);
 void run_batch_delete_operation(INDEX_NODE *);
 void run_show_data_draw_tree_operation(INDEX_NODE *);
+void run_show_logs(INDEX_NODE *);
+
 
 
 int main(void)
@@ -50,9 +54,19 @@ setup_consol(void)
 {
 	INDEX_NODE *test_root;
 	int input, db_set = 0, in_test = 0;
+	string choose;
 	initial_display();
-	while(cin>>input)
+	while(1)
 	{
+		cin>>choose;
+		if(choose.length()>1)
+		{
+			input = -1;
+		}
+		else
+		{
+			sscanf(choose.c_str(), "%1d", &input);
+		}
 		switch(input)
 		{
 			case 1:
@@ -92,6 +106,7 @@ setup_consol(void)
 				return;
 			default:
 				cout<<"Invalid Input!\n"<<endl;
+				initial_display();
 				break;
 		}
 	}
@@ -118,11 +133,22 @@ initial_display(void)
 void
 operate_exist(INDEX_NODE *root)
 {
+	string choose;
 	int input;
 	operate_consol_header();
 	operate_consol_display();
-	while(cin>>input)
+	while(1)
 	{
+		cin>>choose;
+                if(choose.length()>2)
+                {
+                        input = -1;
+                }
+		else
+		{
+			sscanf(choose.c_str(), "%2d", &input);
+		}
+
 		switch(input)
 		{
 			case 0:
@@ -166,10 +192,15 @@ operate_exist(INDEX_NODE *root)
 				operate_consol_display();
 				break;
 			case 10:
+				run_show_logs(root);
+				operate_consol_display();
+                                break;
+			case 11:
 				cout<<"Exit operation try!\n"<<endl;
 				return;
 			default:
-				cout<<"Invalid input.\n"<<endl;	
+				cout<<"Invalid input.\n"<<endl;
+				operate_consol_display();	
 				break;
 		}
 	}
@@ -206,7 +237,8 @@ operate_consol_display(void)
 		7. batch insert.\n\
 		8. batch delete.\n\
 		9. show all data and draw the tree.\n\
-		10. exit\n\
+		10. show some logs.\n\
+		11. exit\n\
 		\n"<<endl;
 	return;
 }
@@ -217,11 +249,33 @@ operate_consol_display(void)
 void 
 run_read_data_operation(INDEX_NODE *root)
 {
-	int key;
 	cout<<"Please input a key: "<<endl;
-	cin>>key;
+	string key_buf;
+        cin>>key_buf;
+
+        if(!is_pure_digit(key_buf))
+        {
+                cout<<"Invalid key!\n"<<endl;
+                return;
+        }
+
+	if(key_buf.length()>10)
+	{
+		cout<<"Key is too long!\n"<<endl;
+		return;
+	}
+
+        int input_key;
+        sscanf(key_buf.c_str(), "%10d", &input_key);
+
+        if(input_key > KEY_RANGE)
+        {
+                cout<<"Key is too large!\n"<<endl;
+                return;
+        }
+
 	cout<<"Runnig read data operation.\n"<<endl;
-	read_value(root,key);
+	read_value(root,input_key);
 	return;
 }
 
@@ -229,16 +283,54 @@ run_read_data_operation(INDEX_NODE *root)
 void 
 run_insert_data_operation(INDEX_NODE *root)
 {
-	DATA_RECORD *data;
-	data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
 	cout<<"Please input a key: "<<endl;
-	cin>>data->key;
+	string key_buf;
+	cin>>key_buf;
+
+        if(!is_pure_digit(key_buf))
+        {
+                cout<<"Invalid key!\n"<<endl;
+                return;
+        }
+
+        if(key_buf.length()>10)
+        {
+                cout<<"Key is too long!\n"<<endl;
+                return;
+        }
+
+	int input_key;
+	sscanf(key_buf.c_str(), "%10d", &input_key);
+
+	if(input_key > KEY_RANGE)
+	{
+		cout<<"Key is too large!\n"<<endl;
+		return;
+	}
+	
+	string value_buf;
+	
 	cout<<"Please input value: "<<endl;
-	cin>>data->value;
+	cin>>value_buf;
+	int len;
+	len = value_buf.length();
+	if(len>974)
+	{
+		cout<<"Value is too long!\n"<<endl;
+	}
+
+        DATA_RECORD *data;
+        data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+        data->key = input_key;
+	data->value = create_n_byte_mem(len+1);
+	(data->value)[len] = '\0';
+	strncpy(data->value, value_buf.c_str(), len);
+	data->len = len;
 
 	if(!insert_node(root, data))
 	{
 		cout<<"Insert failed!\n"<<endl;
+		free(data->value);
 		free(data);
 		data = NULL;
 	}
@@ -255,11 +347,32 @@ run_insert_data_operation(INDEX_NODE *root)
 void 
 run_delete_data_operation(INDEX_NODE *root)
 {
-	int key;
-	cout<<"Please input a key: "<<endl;
-        cin>>key;
+        cout<<"Please input a key: "<<endl;
+	string key_buf;
+        cin>>key_buf;
 
-        if(!delete_node(root, key))
+        if(!is_pure_digit(key_buf))
+        {
+                cout<<"Invalid key!\n"<<endl;
+                return;
+        }
+
+        if(key_buf.length()>10)
+        {
+                cout<<"Key is too long!\n"<<endl;
+                return;
+        }
+
+        int input_key;
+        sscanf(key_buf.c_str(), "%10d", &input_key);
+
+        if(input_key > KEY_RANGE)
+        {
+                cout<<"Key is too large!\n"<<endl;
+                return;
+        }
+
+        if(!delete_node(root, input_key))
         {
                 cout<<"Delete failed!\n"<<endl;
         }
@@ -274,22 +387,74 @@ run_delete_data_operation(INDEX_NODE *root)
 void 
 run_range_search_operation(INDEX_NODE *root)
 {
-	int low, high, asc_dsc;
+	int low, high;
 	ASC_DSC order;
+	
+	string low_buf, high_buf, choose_buf;
 
 	cout<<"Please input a integer to spicify sub bound: "<<endl;
-        cin>>low;
+        cin>>low_buf;
+
+	if(!is_pure_digit(low_buf))
+	{
+		cout<<"Invalid sub bound key!\n"<<endl;
+		return;
+	}
 	
+	if(low_buf.length() > 10)
+	{
+		cout<<"Key is too long!\n"<<endl;
+		return;
+	}
+	else
+	{
+		sscanf(low_buf.c_str(), "%10d", &low);
+	}
+
+	if(low>KEY_RANGE)
+	{
+		cout<<"Sub bound is larger than max key! No result will return!\n"<<endl;
+		return;
+	}
+	
+	if(low < 0)
+	{
+		cout<<"All keys are larger than 0. Sub bound will be replaced by 0.\n"<<endl;
+		low = 0;
+	}
+
 	cout<<"Please input a integer to spicify up bound: "<<endl;
-        cin>>high;
+        cin>>high_buf;
+
+	if(!is_pure_digit(high_buf))
+        {
+                cout<<"Invalid up bound key!\n"<<endl;
+                return;
+        }
+
+        if(high_buf.length() > 10)
+        {
+                cout<<"Key is too long! Will be replaced by largest key allowed!\n"<<endl;
+		high = KEY_RANGE;
+        }
+        else
+        {
+                sscanf(high_buf.c_str(), "%10d", &high);
+        }
+
+	if(high < 0)
+	{
+		cout<<"All keys are larger than 0. No result will return.\n"<<endl;
+		return;
+	}
 
 	cout<<"Please chose display order:\n1, ASC; 2, DSC.\n"<<endl;
-	cin>>asc_dsc;
-	if(asc_dsc == 1)
+	cin>>choose_buf;
+	if(choose_buf == "1")
 	{
 		order = ASC;
 	}
-	else if(asc_dsc == 2)
+	else if(choose_buf == "2")
 	{
 		order = DSC;
 	}
@@ -314,12 +479,49 @@ run_range_search_operation(INDEX_NODE *root)
 void 
 run_update_data_operation(INDEX_NODE *root)
 {
-	DATA_RECORD *data;
-        data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
         cout<<"Please input a key: "<<endl;
-        cin>>data->key;
+	string key_buf;
+        cin>>key_buf;
+
+        if(!is_pure_digit(key_buf))
+        {
+                cout<<"Invalid key!\n"<<endl;
+                return;
+        }
+
+        if(key_buf.length()>10)
+        {
+                cout<<"Key is too long!\n"<<endl;
+                return;
+        }
+
+        int input_key;
+        sscanf(key_buf.c_str(), "%10d", &input_key);
+
+        if(input_key > KEY_RANGE)
+        {
+                cout<<"Key is too large!\n"<<endl;
+                return;
+        }
+
+        string value_buf;
+
         cout<<"Please input value: "<<endl;
-        cin>>data->value;
+        cin>>value_buf;
+        int len;
+        len = value_buf.length();
+        if(len>974)
+        {
+                cout<<"Value is too long!\n"<<endl;
+        }
+
+        DATA_RECORD *data;
+        data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+        data->key = input_key;
+        data->value = create_n_byte_mem(len+1);
+        (data->value)[len] = '\0';
+        strncpy(data->value, value_buf.c_str(), len);
+        data->len = len;
 	
 	if(update_value(root, data))
 	{
@@ -339,18 +541,27 @@ run_update_data_operation(INDEX_NODE *root)
 void 
 run_top_search_operation(INDEX_NODE *root)
 {
-	int num, asc_dsc;
+	string num_buf, asc_dsc;
         cout<<"Please input a number to spicify how many records to fetch: "<<endl;
-        cin>>num;
+        cin>>num_buf;
+
+	if(!is_pure_digit(num_buf))
+	{
+		cout<<"Invalid number!\n"<<endl;
+		return;
+	}
+
+	int num;	
+	sscanf(num_buf.c_str(), "%d", &num);
 	
 	ASC_DSC order;
 	cout<<"Please chose display order:\n1, ASC; 2, DSC.\n"<<endl;
         cin>>asc_dsc;
-        if(asc_dsc == 1)
+        if(asc_dsc == "1")
         {
                 order = ASC;
         }
-        else if(asc_dsc == 2)
+        else if(asc_dsc == "2")
         {
                 order = DSC;
         }
@@ -376,18 +587,27 @@ run_top_search_operation(INDEX_NODE *root)
 void 
 run_bottom_search_operation(INDEX_NODE *root)
 {
-        int num, asc_dsc;
+        string num_buf, asc_dsc;
         cout<<"Please input a number to spicify how many records to fetch: "<<endl;
-        cin>>num;
+        cin>>num_buf;
+
+        if(!is_pure_digit(num_buf))
+        {
+                cout<<"Invalid number!\n"<<endl;
+                return;
+        }
+
+        int num;
+        sscanf(num_buf.c_str(), "%d", &num);
 
         ASC_DSC order;
         cout<<"Please chose display order:\n1, ASC; 2, DSC.\n"<<endl;
         cin>>asc_dsc;
-        if(asc_dsc == 1)
+        if(asc_dsc == "1")
         {
                 order = ASC;
         }
-        else if(asc_dsc == 2)
+        else if(asc_dsc == "2")
         {
                 order = DSC;
         }
@@ -430,5 +650,94 @@ void
 run_show_data_draw_tree_operation(INDEX_NODE *root)
 {
 	draw_a_tree(root);
+	return;
+}
+
+/*This is used to run show some logs.*/
+void
+run_show_logs(INDEX_NODE *root)
+{
+	int max_log_num = 99999;
+	cout<<"How many logs do you want to read? Input a positive integer not larger than "
+		<<max_log_num<<" or 0 to indicate case all!\n"<<endl;
+	string num_buf;
+	cin>>num_buf;
+
+	if(!is_pure_digit(num_buf))
+	{
+		cout<<"Invalid number!\n"<<endl;
+		return;
+	}
+
+	if(num_buf.length() > 5)
+	{
+		cout<<"Too large number!\n"<<endl;
+		return;
+	}
+	
+	int num;
+	sscanf(num_buf.c_str(), "%5d", &num);
+	
+	if(num == 0)
+	{
+		LOG_INFO *all_log;
+	        all_log = exec_read_log(0);
+
+        	if(all_log->log_err)
+	        {
+        	        cout<<"Error in log!\n"<<endl;
+                	free_log_info_mem(all_log);
+	                all_log = NULL;
+        	        return;
+	        }
+
+        	cout<<"Total log number: "<<all_log->total_num<<" Begin Time: "
+                	<<all_log->begin_time<<endl;
+
+	        print_log_details(all_log);
+        	free_log_info_mem(all_log);
+	        all_log = NULL;
+	}
+	else if(num > 0)
+	{
+	        LOG_INFO *res1;
+
+	        cout<<"Read lastest "<<num<<" logs: "<<endl;
+        	res1 = read_recent_logs(num);
+
+	        if(!res1)
+        	{
+        	        cout<<"Open log file failed!"<<endl;
+                	return;
+	        }
+	
+        	if(res1->log_err)
+	        {
+        	        cout<<"Not enough log found!\n"<<endl;
+	        }
+
+		if(!res1->total_num)
+		{
+			cout<<"No avalibale log found!\n"<<endl;
+			free(res1);
+			res1 = NULL;
+			return;
+		}
+
+        	cout<<"Following are the log details: "<<endl;
+
+        	cout<<"Total log number: "<<res1->total_num<<" Begin Time: "
+                	<<res1->begin_time<<endl;
+
+	        print_log_details(res1);
+
+        	free_log_info_mem(res1);
+	        res1 = NULL;
+	}
+	else
+	{
+		cout<<"Wrong input!\n"<<endl;
+	}
+
 	return;
 }

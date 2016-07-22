@@ -16,7 +16,7 @@ using namespace std;
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
 LOG_INFO *exec_read_log(int);
 INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
-
+LOG_INFO *read_recent_logs(int);
 
 
 /*This is used to execute write log.*/
@@ -43,6 +43,7 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 	write_log.write(log_buf, 30);
 	write_log.write(data->value, value_len);
 	write_log.write(LOG_END, 8);
+	write_log.clear();
 	write_log.close();
 	return(RUN_SUCCESS);
 }
@@ -51,6 +52,12 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 LOG_INFO *
 exec_read_log(int search_time)
 {
+	if(search_time < 0)
+	{
+		cout<<"Wrong input search time!\n"<<endl;
+		return(NULL);
+	}
+
 	LOG_INFO *res;
 	res = create_log_info_mem();
 	LOG_LIST *cur_log, *new_log;
@@ -69,14 +76,19 @@ exec_read_log(int search_time)
                 return(NULL);
 	}
 
-	int is_first = 1;
+	int is_first = 1, act_num;
 	
-	char user_buf[6];
-	char act_buf[1];
-	char key_buf[10];
+	char user_buf[7];
+	user_buf[6] = '\0';
+	char act_buf[2];
+	act_buf[1] = '\0';
+	char key_buf[11];
+	key_buf[10] = '\0';
 	char end_buf[9];
 	end_buf[8] = '\0';
-	char log_time[10], res_len[3];
+	char log_time[11], res_len[4];
+	log_time[10] = '\0';
+	res_len[3] = '\0';
 	while(read_log.read(log_time,10))
 	{
 		read_log.read(res_len, 3);
@@ -84,34 +96,15 @@ exec_read_log(int search_time)
 		int trans_time;
 		int length;
 		
-		/*Need to fix the result in memory.*/
-                char *fix_time = create_n_byte_mem(10);
-		strncpy(fix_time, log_time, 10);
-		char *fix_len = create_n_byte_mem(3);
-		strncpy(fix_len, res_len, 3);
-
-		sscanf(fix_time, "%10d", &trans_time);
+		sscanf(log_time, "%10d", &trans_time);
 		
-		sscanf(fix_len, "%3d", &length);
+		sscanf(res_len, "%3d", &length);
 		length = length - 25;
-
-		free(fix_time);
-		free(fix_len);
-		fix_time = NULL;
-		fix_len = NULL;
 
 		read_log.read(user_buf, 6);
 		read_log.read(act_buf, 1);
 		read_log.read(key_buf, 10);
 		
-		/*Fix the data in memory.*/
-		char *fix_user = create_n_byte_mem(6);
-		strncpy(fix_user, user_buf, 6);
-		char *fix_act = create_n_byte_mem(1);
-		strncpy(fix_act, act_buf, 1);
-		char *fix_key = create_n_byte_mem(10);
-		strncpy(fix_key, key_buf, 10);
-
 		char *value_buf = create_n_byte_mem(length+1);
 		value_buf[length] = '\0';
 		read_log.read(value_buf, length);
@@ -121,14 +114,11 @@ exec_read_log(int search_time)
 		{
 			cout<<"Log Error!\n"<<endl;
 			res->log_err = TRUE;
-			free(fix_user);
-			free(fix_act);
-			free(fix_key);
 			free(value_buf);
-			fix_user = NULL;
-			fix_act = NULL;
-			fix_key = NULL;
 			value_buf = NULL;
+
+			read_log.clear();
+			read_log.close();
 			return(res);
 		}
 
@@ -136,21 +126,15 @@ exec_read_log(int search_time)
 		if(trans_time >= search_time)
 		{
 			new_log = create_log_list_mem();
-			sscanf(fix_user, "%6d", &(new_log->user));
-			sscanf(fix_act, "%1d", &(new_log->act));
-
-			free(fix_user);
-                        free(fix_act);
-                        fix_user = NULL;
-                        fix_act = NULL;
+			sscanf(user_buf, "%6d", &(new_log->user));
+			sscanf(act_buf, "%1d", &act_num);
+			new_log->act = get_action(act_num);
 
 			new_log->time = trans_time;
 	
 			DATA_RECORD *new_record;
 			new_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
-			sscanf(fix_key, "%10d", &(new_record->key));
-			free(fix_key);
-			fix_key = NULL;
+			sscanf(key_buf, "%10d", &(new_record->key));
 		
 			new_record->value = create_n_byte_mem(length+1);
 			strncpy(new_record->value, value_buf,length+1);
@@ -176,7 +160,8 @@ exec_read_log(int search_time)
 		free(value_buf);
 		value_buf = NULL;
 	}
-	
+
+	read_log.clear();	
 	read_log.close();	
 
 	return(res);
@@ -249,4 +234,193 @@ redo_according_log(INDEX_NODE *root, LOG_INFO *log_info)
 
 	//free_write_whole_tree_lock(root);
 	return(root);
+}
+
+/*This is used to read recent serveral logs.*/
+LOG_INFO *
+read_recent_logs(int num)
+{
+	if(num <= 0)
+	{
+		cout<<"Wrong input number!"<<endl;
+		return(NULL);
+	}
+
+	ifstream read_log(LOG_FILE);
+
+        if(!read_log)
+        {
+                cout<<"Cannot open log file.\n"<<endl;
+                return(NULL);
+        }
+
+	LOG_LIST *cur_log;
+	cur_log = create_log_list_mem();
+
+	int saved_num = 0, is_first = 1, is_circle_closed = 0;
+
+	LOG_LIST *first_log;
+	first_log = cur_log;
+
+	char log_time[11];
+	log_time[10] = '\0';
+	char user_buf[7];
+	user_buf[6] = '\0';
+        char act_buf[2];
+	act_buf[1] = '\0';
+        char key_buf[11];
+	key_buf[10] = '\0';
+        char end_buf[9];
+        end_buf[8] = '\0';
+        char res_len[4];
+	res_len[3] = '\0';
+
+	int begin_time, act, len, key;
+	PID user;
+
+	while(read_log.read(log_time,10))
+	{
+		sscanf(log_time, "%10d", &begin_time);
+		
+		read_log.read(res_len, 3);
+		sscanf(res_len, "%3d", &len);		
+
+		read_log.read(user_buf, 6);
+		sscanf(user_buf, "%6d", &user);
+		
+		read_log.read(act_buf, 1);
+		sscanf(act_buf, "%1d", &act);
+
+		read_log.read(key_buf, 10);
+		sscanf(key_buf, "%10d", &key);
+		
+		len = len - 25;
+		char *value = create_n_byte_mem(len + 1);
+		value[len] = '\0';
+		read_log.read(value, len);
+
+		read_log.read(end_buf, 8);
+		if(!strcmp(end_buf, LOG_END))
+		{
+			/*This is an avalibale log.*/
+		
+			/*Only read the lastest need to be handled specially.*/
+			if(num == 1)
+			{
+				cur_log->user = user;
+				cur_log->time = begin_time;
+				cur_log->act = get_action(act);
+				if(is_first)
+				{
+					cur_log->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+					is_first = 0;
+					saved_num = 1;
+				}
+				else
+				{
+					free(cur_log->data_record->value);
+					cur_log->data_record->value = NULL;
+				}
+				cur_log->data_record->key = key;
+				cur_log->data_record->value = create_n_byte_mem(len+1);
+				strncpy(cur_log->data_record->value, value, len+1);
+                                cur_log->next_log = NULL;
+			}
+			else
+			{	
+				/*Firstly, add new log.*/
+				if(is_first)
+				{
+					cur_log->user = user;
+					cur_log->time = begin_time;
+					cur_log->act = get_action(act);
+					cur_log->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+					cur_log->data_record->key = key;
+					cur_log->data_record->value = create_n_byte_mem(len+1);
+					strncpy(cur_log->data_record->value, value, len+1);
+					cur_log->next_log = NULL;
+					is_first = 0;
+					saved_num ++;
+				}
+				else
+				{
+					if(!is_circle_closed)
+					{
+						/*Circle is not closed, need to creat a new_log.*/
+						LOG_LIST *new_log;
+						new_log = create_log_list_mem();
+	
+						new_log->user = user;
+                		                new_log->time = begin_time;
+                        	        	new_log->act = get_action(act);
+	                              		new_log->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+		                               	new_log->data_record->key = key;
+        		                        new_log->data_record->value = create_n_byte_mem(len+1);
+                		                strncpy(new_log->data_record->value, value, len+1);
+                        		        new_log->next_log = NULL;
+				
+						/*Circle is not closed, add it directly.*/
+						cur_log->next_log = new_log;
+						cur_log = cur_log->next_log;
+						saved_num ++;
+					}
+					else
+					{
+						/*Circle is closed. When adding new log, 
+						need to replace old one.*/
+						LOG_LIST *replace_log;
+						replace_log = cur_log->next_log;
+						replace_log->user = user;
+						replace_log->act = get_action(act);
+						free(replace_log->data_record->value);
+						replace_log->data_record->key = key;
+						replace_log->data_record->value = create_n_byte_mem(len+1);
+						strncpy(replace_log->data_record->value, value, len+1);
+
+						cur_log = cur_log->next_log;
+					}
+				}
+
+				/*The circle must be closed now*/
+				if((saved_num == num) && !is_circle_closed)
+				{
+					is_circle_closed = 1;
+					cur_log->next_log = first_log;
+				}
+			}
+		}
+		
+		free(value);
+		value = NULL;
+	}
+
+	if(is_circle_closed)
+	{
+		/*Oldest one of which are not been replaced.*/
+		first_log = cur_log->next_log;
+		
+		/*Need to dislink the last and first.*/
+		cur_log->next_log = NULL;
+	}
+	
+	LOG_INFO *ret;
+	ret = create_log_info_mem();
+	ret->log_list = first_log;
+
+	ret->total_num = saved_num;
+	ret->begin_time = first_log->time;
+
+	if(saved_num < num)
+	{
+		ret->log_err = TRUE;
+	}
+	else
+	{
+		ret->log_err = FALSE;
+	}
+	
+	read_log.clear();
+	read_log.close();
+
+	return(ret);
 }

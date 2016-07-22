@@ -117,10 +117,13 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 		last_log.write(back_time, 10);
         	last_log.write(file_name, 12);
         	last_log.write(BACK_END, 8);
+		last_log.clear();
 		last_log.close();
 	}
 
+	write_file.clear();
 	write_file.close();
+	back_log.clear();
 	back_log.close();
 
 	is_force_backup = FALSE;
@@ -224,6 +227,7 @@ auto_backup(void)
 		last_log.write(back_time, 10);
 		last_log.write(back_info->filename, 12);
 		last_log.write(BACK_END, 8);
+		last_log.clear();
                 last_log.close();
         }
 
@@ -235,6 +239,7 @@ auto_backup(void)
 		back_log.write(back_time, 10);
 		back_log.write(back_info->filename, 12);
 		back_log.write(BACK_END, 8);
+		back_log.clear();
                 back_log.close();
         }
 
@@ -336,6 +341,7 @@ search_backup_info(void)
 		sscanf(begin_time, "%10d", &back_time);
                 back_info->begin_time = back_time;
                 found_file = 1;
+		read_last.clear();
                 read_last.close();
         }
 
@@ -402,6 +408,7 @@ search_backup_file(void)
 		return(NULL);
 	}
 
+	back_log.clear();
 	back_log.close();
 	return(res);
 }
@@ -430,8 +437,10 @@ exec_read_data(char *file_name)
 	res = create_data_record_list_mem();
 	DATA_RECORD *new_record;
 
-	char key_buf[10];
-	char value_len[3];
+	char key_buf[11];
+	key_buf[10] = '\0';
+	char value_len[4];
+	value_len[3] = '\0';
 	int min_key = KEY_RANGE + 1;
 	int max_key = 0;
 
@@ -439,18 +448,10 @@ exec_read_data(char *file_name)
 	{
 		char *end_mark = create_n_byte_mem(8);
 		
-		/*Must fix the key here, since may copy unwanted char from memory.*/
-		char *key_fix = create_n_byte_mem(10);
-		strncpy(key_fix, key_buf, 10);
-		
 		read_data.read(value_len, 3);
 
-		/*Fix the length too.*/
-		char *len_fix = create_n_byte_mem(3);
-		strncpy(len_fix, value_len, 3);
-
-		sscanf(key_fix, "%10d", &key);
-		sscanf(len_fix, "%3d", &len);
+		sscanf(key_buf, "%10d", &key);
+		sscanf(value_len, "%3d", &len);
 
 		char *value;
 		value = create_n_byte_mem(len);
@@ -494,10 +495,6 @@ exec_read_data(char *file_name)
 			}
 		}
 
-		free(key_fix);
-		key_fix = NULL;
-		free(len_fix);
-		len_fix = NULL;
 		free(value);
 		value = NULL;
 		free(end_mark);

@@ -15,6 +15,10 @@ using namespace std;
 RUN_RESULT run_backup_write_read_test(INDEX_NODE *root);
 RUN_RESULT run_log_write_read_test(INDEX_NODE *);
 void print_log_details(LOG_INFO *);
+RUN_RESULT run_read_recent_log_test(INDEX_NODE *);
+RUN_RESULT read_recent_log_test_1(void);
+RUN_RESULT read_recent_log_test_2(void);
+RUN_RESULT read_recent_log_test_3(void);
 
 
 /*This is used to run backup write and read test.*/
@@ -66,20 +70,14 @@ run_log_write_read_test(INDEX_NODE *root)
 		return(RUN_FAILED);
 	}
 
-	char first_time[10];
+	char first_time[11];
+	first_time[10] = '\0';
 	int start_time;
 	read_log.seekg(0, ios_base::beg);
 	read_log.read(first_time, 10);
 	
-	/*Need to fix the result*/
-	char *fix_time = create_n_byte_mem(10);
-	strncpy(fix_time, first_time, 10);
-
 	sscanf(first_time, "%10d", &start_time);
 
-	free(fix_time);
-	fix_time = NULL;
-	
 	read_log.close();
 	LOG_INFO *all_log;
 	all_log = exec_read_log(start_time);
@@ -96,9 +94,127 @@ run_log_write_read_test(INDEX_NODE *root)
 		<<all_log->begin_time<<endl;
 
 	print_log_details(all_log);
+	free_log_info_mem(all_log);
+        all_log = NULL;
 
 	return(RUN_SUCCESS);
 }
+
+/*This is used to run read recent several logs test.*/
+RUN_RESULT
+run_read_recent_log_test(INDEX_NODE *root)
+{
+	cout<<"\nBegin read recnet log test:"<<endl;
+	
+	if(read_recent_log_test_1() && read_recent_log_test_2()
+			&& read_recent_log_test_3())
+	{
+		return(RUN_SUCCESS);
+	}
+	else
+	{
+		return(RUN_FAILED);
+	}
+}
+
+RUN_RESULT
+read_recent_log_test_1(void)	
+{	/*Read lastest one log*/
+	LOG_INFO *res1;
+	
+	cout<<"Read lastest one log: "<<endl;
+	res1 = read_recent_logs(1);
+
+	if(!res1)
+	{
+		cout<<"Open log file failed!"<<endl;
+		return(RUN_FAILED);
+	}
+
+	if(res1->log_err)
+	{
+		cout<<"Not enough log found!\n"<<endl;
+	}
+
+	cout<<"Following are the log details: "<<endl;
+
+	cout<<"Total log number: "<<res1->total_num<<" Begin Time: "
+                <<res1->begin_time<<endl;
+
+        print_log_details(res1);
+
+	free_log_info_mem(res1);
+	res1 = NULL;
+	
+	return(RUN_SUCCESS);
+}
+
+RUN_RESULT
+read_recent_log_test_2(void)
+{
+	/*Read lastest sevral log*/
+        LOG_INFO *res2;
+
+        cout<<"Read lastest 4 logs: "<<endl;
+        res2 = read_recent_logs(4);
+
+        if(!res2)
+        {
+                cout<<"Open log file failed!"<<endl;
+                return(RUN_FAILED);
+        }
+
+        if(res2->log_err)
+        {
+                cout<<"Not enough log found!\n"<<endl;
+        }
+
+	cout<<"Following are the log details: "<<endl;
+
+        cout<<"Total log number: "<<res2->total_num<<" Begin Time: "
+                <<res2->begin_time<<endl;
+
+        print_log_details(res2);
+
+        free_log_info_mem(res2);
+        res2 = NULL;
+	
+	return(RUN_SUCCESS);
+}
+
+RUN_RESULT
+read_recent_log_test_3(void)
+{
+	/*Not enough logs*/
+        LOG_INFO *res3;
+
+        cout<<"Read lastest 15 logs: "<<endl;
+        res3 = read_recent_logs(15);
+
+        if(!res3)
+        {
+                cout<<"Open log file failed!"<<endl;
+                return(RUN_FAILED);
+        }
+
+        if(res3->log_err)
+        {
+                cout<<"Not enough log found!\n"<<endl;
+        }
+
+        cout<<"Following are the log details: "<<endl;
+
+        cout<<"Total log number: "<<res3->total_num<<" Begin Time: "
+                <<res3->begin_time<<endl;
+
+        print_log_details(res3);
+
+        //free_log_info_mem(res3);
+        //res3 = NULL;
+
+	return(RUN_SUCCESS);
+}
+
 
 /*This is used to print log details*/
 void
@@ -111,14 +227,19 @@ print_log_details(LOG_INFO *log)
 		cout<<"User: "<<cur_log->user<<" Time: "<<cur_log->time<<" Action: ";
 		switch(cur_log->act)
 		{
-			case 1:
+			case READ:
+				cout<<" READ";
+			case INSERT:
 				cout<<" INSERT";
 				break;
-			case 2:
+			case UPDATE:
 				cout<<" UPDATE";
 				break;
-			default:
+			case DELETE:
 				cout<<" DELETE";
+				break;
+			default:
+				cout<<" UNDEFINED";
 				break;
 		}
 		
