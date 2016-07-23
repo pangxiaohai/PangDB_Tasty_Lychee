@@ -36,7 +36,7 @@ enum RUN_RESULT {RUN_FAILED = 0, RUN_SUCCESS = 1};
 
 enum IDX_BOOL {FALSE = 0, TRUE = 1};
 
-enum SEARCH_DIR {FORWARD, BACKWORD};
+enum SEARCH_DIR {FORWARD, BACKWARD};
 
 enum ASC_DSC {ASC, DSC};
 
@@ -337,6 +337,10 @@ RUN_RESULT run_backup_write_read_test(INDEX_NODE *);
 RUN_RESULT run_log_write_read_test(INDEX_NODE *);
 RUN_RESULT run_read_recent_log_test(INDEX_NODE *);
 void print_log_details(LOG_INFO *);
+
+/*Following for leaf link and index tree diagnose and repair.*/
+RUN_RESULT check_and_repair_leaf_link(INDEX_NODE *);
+
 
 /*Global Varibles*/
 extern INDEX_NODE *test_root;

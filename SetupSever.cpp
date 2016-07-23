@@ -27,7 +27,7 @@ void run_batch_insert_operation(INDEX_NODE *);
 void run_batch_delete_operation(INDEX_NODE *);
 void run_show_data_draw_tree_operation(INDEX_NODE *);
 void run_show_logs(INDEX_NODE *);
-
+INDEX_NODE *run_diagnose_and_repair(INDEX_NODE *);
 
 
 int main(void)
@@ -196,6 +196,10 @@ operate_exist(INDEX_NODE *root)
 				operate_consol_display();
                                 break;
 			case 11:
+                                root = run_diagnose_and_repair(root);
+                                operate_consol_display();
+                                break;
+			case 12:
 				cout<<"Exit operation try!\n"<<endl;
 				return;
 			default:
@@ -238,7 +242,8 @@ operate_consol_display(void)
 		8. batch delete.\n\
 		9. show all data and draw the tree.\n\
 		10. show some logs.\n\
-		11. exit\n\
+		11. diagnose and repair index tree.\n\
+		12. exit\n\
 		\n"<<endl;
 	return;
 }
@@ -740,4 +745,50 @@ run_show_logs(INDEX_NODE *root)
 	}
 
 	return;
+}
+
+/*This is used to do diagnose and repair.*/
+INDEX_NODE *
+run_diagnose_and_repair(INDEX_NODE *root)
+{
+	string input;
+	cout<<"What do you want to do?\n"<<"1, repair the leaf link;\n"
+		<<"2, repair the leaf link and rebuild the whole index tree;\n"
+		<<"3, recovery all data by using data backup fils and log files;\n"
+		<<"4, exit.\n"<<endl;
+	cin>>input;
+
+	if(input.length() != 1)
+	{
+		cout<<"Invalid input"<<endl;
+		return(root);
+	}
+
+	int choice;
+	sscanf(input.c_str(), "%1d", &choice);	
+	switch(choice)
+	{
+		case 1:
+			if(check_and_repair_leaf_link(root))
+			{
+				cout<<"Repair success!\n"<<endl;
+			}
+			else
+			{
+				cout<<"Repair failed!\n"<<endl;
+			}
+			break;
+		case 2:
+		case 3:
+			cout<<"Not finished yet!\n"<<endl;
+			break;
+		case 4:
+			cout<<"Exit!\n"<<endl;
+			break;
+		default:
+			cout<<"Invalid input!\n"<<endl;
+			break;
+	}
+
+	return(root);
 }

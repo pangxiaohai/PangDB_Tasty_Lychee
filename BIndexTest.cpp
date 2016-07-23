@@ -510,7 +510,7 @@ void
 execute_draw_leaves(LEAF_NODE *begin_node, int length, SEARCH_DIR direction)
 {
         int drawn_nodes = 0, nodes_in_line = 0;
-        if(direction == BACKWORD)
+        if(direction == BACKWARD)
         {
                 while(begin_node)
                 {
@@ -593,7 +593,7 @@ test_leaf_link(LEAF_NODE *begin_node, ON_OFF on_off)
 {
 	if(on_off)
 	{
-		execute_draw_leaves(begin_node, ALL_REST_LEAVES, BACKWORD );
+		execute_draw_leaves(begin_node, ALL_REST_LEAVES, BACKWARD );
 	}
 	return;
 }

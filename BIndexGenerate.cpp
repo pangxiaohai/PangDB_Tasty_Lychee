@@ -24,6 +24,12 @@ DATA_RECORD_LIST *merge_sort(DATA_RECORD_LIST*, DATA_RECORD_LIST*);
 INDEX_NODE *
 mk_index(DATA_RECORD_LIST *data_list, int record_num)
 {
+	if(record_num <= (LEAST_P_NUM * LEAST_P_NUM))
+	{
+		cout<<"Too few data records. No need to build a index tree.\n"<<endl;
+		return(NULL);
+	}
+
 	INDEX_NODE *root;
 	LEAF_NODE *leaf_node_list;
 	leaf_node_list = generate_leaf_node(data_list, record_num);
@@ -53,7 +59,7 @@ generate_leaf_node(DATA_RECORD_LIST *data_list, int record_num)
 	test_leaf_link(retval, OFF);
 
 	/*For Debugging Last Pri_key Lost.*/
-	//draw_all_rest_leaves(retval, BACKWORD);	
+	//draw_all_rest_leaves(retval, BACKWARD);	
 
 	return(retval);
 }
@@ -98,7 +104,7 @@ link_list(DATA_RECORD_LIST *data_list, int record_num)
 	}
 
 	/*For Debugging Last Pri_key Lost.*/
-        //draw_all_rest_leaves(retval_list, BACKWORD);
+        //draw_all_rest_leaves(retval_list, BACKWARD);
 
 	free_data_record_list_mem(data_list);
 	data_list = NULL;
