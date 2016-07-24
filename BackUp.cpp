@@ -154,24 +154,32 @@ data_recovery(void)
 		cout<<"Error! Cannot recover data!\n"<<endl;
 		return(NULL);
 	}
+
+	test_list(data_info->data_list, data_info->num, OFF);
 	/*Re-build the whole tree*/
 	INDEX_NODE *mid_root = mk_index(data_info->data_list, data_info->num);
 
-	free_data_info_mem(data_info);
-	data_info = NULL;
+	//free_data_info_mem(data_info);
+	//data_info = NULL;
 
 	/*Get logs after backup begin time and re-do the modifications.*/
 	LOG_INFO *redo_log;
-	redo_log = exec_read_log(back_info->begin_time);
+	redo_log = exec_read_log(back_info->begin_time + 1);
 	
 	free(back_info);
 	back_info = NULL;
 
 	INDEX_NODE *ret_root;
-	ret_root = redo_according_log(mid_root, redo_log);
-
-	free_log_info_mem(redo_log);
-	redo_log = NULL;
+	if(redo_log)
+	{
+		ret_root = redo_according_log(mid_root, redo_log);
+		free_log_info_mem(redo_log);
+        	redo_log = NULL;
+	}
+	else
+	{
+		ret_root = mid_root;
+	}
 
 	return(ret_root);
 }
@@ -325,11 +333,15 @@ write_file_according_log(char *filename, LOG_INFO *log_info)
 BACK_INFO *
 search_backup_info(void)
 {
-        char end_mark[8], begin_time[10];
+        char end_mark[9], begin_time[11];
+	end_mark[8] = '\0';
+	begin_time[10] = '\0';
         int found_file = 0;
         BACK_INFO *back_info;
 
         back_info = (BACK_INFO *)malloc(sizeof(BACK_INFO));
+	back_info->filename = create_n_byte_mem(13);
+	back_info->filename[12] = '\0';
 
         ifstream read_last(LAST_LOG);
         if(read_last)
@@ -446,7 +458,8 @@ exec_read_data(char *file_name)
 
 	while(read_data.read(key_buf, 10))
 	{
-		char *end_mark = create_n_byte_mem(8);
+		char *end_mark = create_n_byte_mem(9);
+		end_mark[8] = '\0';
 		
 		read_data.read(value_len, 3);
 
@@ -454,7 +467,8 @@ exec_read_data(char *file_name)
 		sscanf(value_len, "%3d", &len);
 
 		char *value;
-		value = create_n_byte_mem(len);
+		value = create_n_byte_mem(len+1);
+		value[len] = '\0';
 		read_data.read(value, len);
 		read_data.read(end_mark, 8);
 
@@ -465,8 +479,9 @@ exec_read_data(char *file_name)
 		{
 			new_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
 			new_record->key = key;
-			new_record->value = create_n_byte_mem(len);
-			strncpy(new_record->value, value, len);
+			new_record->value = create_n_byte_mem(len+1);
+			(new_record->value)[len] = '\0';
+			strncpy(new_record->value, value, len+1);
 			num ++;
 			
 			if(key > max_key)
@@ -500,7 +515,6 @@ exec_read_data(char *file_name)
 		free(end_mark);
 		end_mark = NULL;
 	}
-
 	DATA_INFO *data_info;
 	
 	if(num)

@@ -52,6 +52,9 @@ RUN_RESULT create_sys_files(void);
 char *create_n_byte_mem(int);
 ACTION get_action(int);
 IDX_BOOL is_pure_digit(string);
+void free_broken_index_tree(INDEX_NODE *);
+void free_leaf_list_memroy(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
+
 
 
 /*This is used to determine the node type.*/
@@ -366,7 +369,8 @@ free_level_info_mem(LEVEL_INFO *level_info)
 		cur_node_info = cur_node_info->next_node_info;
 		free(target_node_info);
 	}
-	
+
+	free(level_info);	
 	target_node_info = NULL;
 	level_info = NULL;
 	return;
@@ -648,4 +652,64 @@ create_n_byte_mem(int num)
 	char *ret;
 	ret = (char *)malloc(num * sizeof(char));
 	return(ret);
+}
+
+/*This is used to free broken index tree.*/
+/*This function will not free any leaves.*/
+void
+free_broken_index_tree(INDEX_NODE *root)
+{
+	if(is_leaf_node(root))
+	{
+		return;
+	}
+	else
+	{
+		int i;
+		for(i = 0; i != root->key_num + 1; ++i)
+		{
+			/*Omit the broken links.*/
+			if(root->p_node[i])
+			{
+				free_broken_index_tree(root->p_node[i]);
+			}
+		}
+		free(root);
+		root = NULL;
+		return;
+	}
+}
+
+/*This is used to free a list of leaves' memory.*/
+void
+free_leaf_list_memroy(LEAF_NODE *begin, LEAF_NODE *end, SEARCH_DIR direction)
+{
+	LEAF_NODE *cur_leaf, *target;
+	cur_leaf = begin;
+	
+	if(direction == FORWARD)
+	{
+		while(cur_leaf != end->back_node && !cur_leaf)
+		{
+			target = cur_leaf;
+			cur_leaf = cur_leaf->back_node;
+			/*Do not free data record's memory here.*/
+			free(target);
+			target = NULL;
+		}
+		
+	}
+	else
+	{
+		while(cur_leaf != end->front_node && !cur_leaf)
+                {
+                        target = cur_leaf;
+                        cur_leaf = cur_leaf->front_node;
+                        /*Do not free data record's memory here.*/
+                        free(target);
+                        target = NULL;
+                }
+	}
+	
+	return;
 }

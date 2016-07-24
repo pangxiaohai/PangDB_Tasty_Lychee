@@ -162,7 +162,7 @@ typedef struct log_info{
 
 typedef struct back_info{
 	int begin_time;
-	char filename[12];
+	char *filename;
 } BACK_INFO;
 
 typedef struct data_info{
@@ -255,6 +255,8 @@ void free_data_info_mem(DATA_INFO *);
 void free_sub_tree_list_info_mem(SUB_TREE_LIST_INFO *);
 void free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *);
 //void free_depth_info_mem(DEPTH_INFO *);
+void free_broken_index_tree(INDEX_NODE *);
+void free_leaf_list_memroy(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
 
 /*Following for test support!*/
 RUN_RESULT run_mk_BIndex_test(INDEX_NODE *);
@@ -277,6 +279,7 @@ RUN_RESULT run_update_test(INDEX_NODE *);
 RUN_RESULT run_delete_test(INDEX_NODE *);
 RUN_RESULT run_insert_test(INDEX_NODE *);
 INDEX_NODE *test_init(void);
+RUN_RESULT run_data_recovery_test(void);
 
 /*Following for supported operations.*/
 NODE_PATH_INFO *scan_node(INDEX_NODE *, int);
@@ -340,6 +343,8 @@ void print_log_details(LOG_INFO *);
 
 /*Following for leaf link and index tree diagnose and repair.*/
 RUN_RESULT check_and_repair_leaf_link(INDEX_NODE *);
+INDEX_NODE *re_generate_index_tree(INDEX_NODE *, LEAF_NODE *, LEAF_NODE *);
+INDEX_NODE *repair_and_rebuild_index_tree(INDEX_NODE *);
 
 
 /*Global Varibles*/

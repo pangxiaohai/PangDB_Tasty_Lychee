@@ -1097,12 +1097,12 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
 	else if(!second)
 	{
 		first->back_node = new_leaf;
-		new_leaf->front_node = second;
+		new_leaf->front_node = first;
 	}
 	else
 	{
 		first->back_node = new_leaf;
-                new_leaf->front_node = second;
+                new_leaf->front_node = first;
 		second->front_node = new_leaf;
                 new_leaf->back_node = second;
 	}
@@ -1909,12 +1909,6 @@ quick_search_special(INDEX_NODE *root, FIRST_OR_LAST first_last)
 DATA_INFO *
 fetch_leaf_list_data_info(LEAF_NODE *begin, LEAF_NODE *end)
 {
-	if(begin->data_record->key >= end->data_record->key)
-	{
-		cout<<"Wrong input!\n"<<endl;
-		return(NULL);
-	}
-
 	DATA_INFO *ret = create_data_info_mem();
 	int is_first = 1, data_num = 0;
 
@@ -2055,15 +2049,29 @@ exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NOD
                         new_p_list[i] = cur_link->index_node->p_node[i];
                 }
 
-                new_key_list[insert_pos] = new_key;
-                new_p_list[insert_pos] = new_node;
+		/*Consider the situation that new key will not be added. 
+		The new added key is produced from a node which is not included before.
+		This situation happens when inserting largest key to a node.*/
+		if(insert_pos == cur_key_num &&
+                        key > cur_link->index_node->key_list[cur_key_num - 1])
+		{
+			new_key_list[cur_key_num] = 
+				cur_link->index_node->p_node[cur_key_num]->pri_key;
+			new_p_list[cur_key_num] = cur_link->index_node->p_node[cur_key_num];
+			new_p_list[cur_key_num + 1] = new_node;
+		}
+		else
+		{
+                	new_key_list[insert_pos] = new_key;
+                	new_p_list[insert_pos] = new_node;
 
-                for(i = insert_pos+1; i < cur_key_num + 1; ++i)
-                {
-                        new_key_list[i] = cur_link->index_node->key_list[i-1];
-                        new_p_list[i] = cur_link->index_node->p_node[i-1];
-                }
-                new_p_list[cur_key_num + 1] = cur_link->index_node->p_node[cur_key_num];
+	                for(i = insert_pos+1; i < cur_key_num + 1; ++i)
+        	        {
+                	        new_key_list[i] = cur_link->index_node->key_list[i-1];
+                        	new_p_list[i] = cur_link->index_node->p_node[i-1];
+                	}
+                	new_p_list[cur_key_num + 1] = cur_link->index_node->p_node[cur_key_num];
+		}
 
                 /*No need to split node*/
                 if(cur_key_num + 1 <= MAXKEYNUM)

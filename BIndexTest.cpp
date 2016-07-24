@@ -31,6 +31,7 @@ int produce_actual_key(INDEX_NODE *, int);
 RUN_RESULT run_update_test(INDEX_NODE *);
 RUN_RESULT run_delete_test(INDEX_NODE *);
 RUN_RESULT run_insert_test(INDEX_NODE *);
+RUN_RESULT run_data_recovery_test(void);
 
 
 /*Run make BIndex Test.*/
@@ -380,6 +381,29 @@ run_insert_test(INDEX_NODE *root)
 	return(RUN_SUCCESS);
 }
 
+/*This is used to run data recovery test.*/
+RUN_RESULT
+run_data_recovery_test(void)
+{
+	INDEX_NODE *new_root;
+	cout<<"Generate a new tree from files.\n"<<endl;
+	new_root = data_recovery();
+
+	if(!new_root)
+	{
+		cout<<"Data recovery test failed.\n"<<endl;
+		return(RUN_FAILED);
+	}
+
+	cout<<"Draw the new tree.\n"<<endl;
+	draw_a_tree(new_root);
+	
+	cout<<"Finish data recovery test, free this tree.\n"<<endl;
+	free_a_tree_mem(new_root);
+	
+	return(RUN_SUCCESS);
+}
+
 /*This is used to produce an available key using random data.*/
 int
 produce_actual_key(INDEX_NODE *root, int num)
@@ -510,7 +534,7 @@ void
 execute_draw_leaves(LEAF_NODE *begin_node, int length, SEARCH_DIR direction)
 {
         int drawn_nodes = 0, nodes_in_line = 0;
-        if(direction == BACKWARD)
+        if(direction == FORWARD)
         {
                 while(begin_node)
                 {
@@ -593,7 +617,7 @@ test_leaf_link(LEAF_NODE *begin_node, ON_OFF on_off)
 {
 	if(on_off)
 	{
-		execute_draw_leaves(begin_node, ALL_REST_LEAVES, BACKWARD );
+		execute_draw_leaves(begin_node, ALL_REST_LEAVES, FORWARD);
 	}
 	return;
 }

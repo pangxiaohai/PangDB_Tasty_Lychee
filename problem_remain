@@ -1,5 +1,3 @@
 Debug double free memory problem.
 
 Refactor duplicated code.
-
-Delete new added nodes lead to index tree crash problem.

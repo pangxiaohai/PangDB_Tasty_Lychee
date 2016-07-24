@@ -325,7 +325,7 @@ generate_non_leaf(LEAF_NODE *leaf_node_list, int record_num)
 
 	/*For Test*/
 	test_level_info(secLast_info, OFF);
-		
+
 	NODE_INFO *last_node_info;
 
 	last_node_info = secLast_info->node_info_addr;
@@ -364,7 +364,6 @@ generate_non_leaf(LEAF_NODE *leaf_node_list, int record_num)
 
 	INDEX_NODE *ret_node;
 	ret_node = root_level_info->node_info_addr->node_addr;
-
 	free_level_info_mem(root_level_info);	
 	root_level_info = NULL;
 
@@ -379,16 +378,15 @@ LEVEL_INFO *
 generate_level(LEVEL_INFO *level_info)
 {
 	int left_node = level_info->node_num, ret_num = 0, mark = 0;
-	NODE_INFO *ret_node_info, *cur_node_info, *new_node_info;
+	NODE_INFO *ret_node_info, *cur_node_info, *new_node_info, *cur_ret_node_info;
 	INDEX_NODE *new_node;
-	
+
+	IDX_BOOL is_first = TRUE;	
 	LEVEL_INFO *ret_level_info;
 
 	ret_level_info = create_level_info_mem();
-	ret_node_info = create_node_info_mem();
-	
-	cur_node_info = level_info->node_info_addr;
-	ret_level_info->node_info_addr = ret_node_info;	
+
+	cur_node_info = level_info->node_info_addr;	
 	ret_level_info->node_num = 0;
 
 	while(left_node)
@@ -422,8 +420,17 @@ generate_level(LEVEL_INFO *level_info)
 			new_node_info->node_type = INDEX_NODE_TYPE;
 			new_node_info->next_node_info = NULL;
 
-			ret_node_info->next_node_info =  new_node_info;
-			ret_node_info = ret_node_info->next_node_info;
+			if(is_first)
+			{
+				ret_node_info = new_node_info;
+				cur_ret_node_info = ret_node_info;
+				is_first = FALSE;
+			}
+			else
+			{
+				cur_ret_node_info->next_node_info =  new_node_info;
+				cur_ret_node_info = cur_ret_node_info->next_node_info;
+			}
 			
 			ret_num ++;
 			left_node -= mark + 1;
@@ -455,30 +462,33 @@ generate_level(LEVEL_INFO *level_info)
                         new_node_info->node_addr = new_node;
                         new_node_info->node_type = INDEX_NODE_TYPE;
                         new_node_info->next_node_info = NULL;
-			ret_node_info->next_node_info = new_node_info;
 
+			if(is_first)
+                        {
+                                ret_node_info = new_node_info;
+                                cur_ret_node_info = ret_node_info;
+                                is_first = FALSE;
+                        }
+                        else
+                        {
+                                cur_ret_node_info->next_node_info =  new_node_info;
+                                cur_ret_node_info = cur_ret_node_info->next_node_info;
+                        }
                         ret_num ++;
 			left_node -= left_node;
+			test_node_info(ret_node_info, OFF);
 			mark = 0;
 		}
 	}
-	
+
+	ret_level_info->node_info_addr = ret_node_info;	
 	ret_level_info->node_num = ret_num;
-
-	/*Remove empty header.*/
-	NODE_INFO *null_ptr;
-
-	null_ptr = ret_level_info->node_info_addr;
-	ret_level_info->node_info_addr = ret_level_info->node_info_addr->next_node_info;
-
-	free(null_ptr);
-	null_ptr = NULL;
 
 	/*For Test*/
 	test_node_info(ret_level_info->node_info_addr, OFF);
 	test_level_info(ret_level_info, OFF);
-	
-	free_level_info_mem(level_info);
+
+	//free_level_info_mem(level_info);
 
 	return(ret_level_info);
 }

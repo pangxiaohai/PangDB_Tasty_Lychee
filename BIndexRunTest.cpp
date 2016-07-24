@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define TOTAL_CASE 28
+#define TOTAL_CASE 29
 #define TESTDATANUM 100
 
 
@@ -166,6 +166,15 @@ run_all_tests(INDEX_NODE *root)
         else
         {
                 result.fail_num += 3;
+        }
+
+	if(run_data_recovery_test())
+        {
+                result.success_num += 1;
+        }
+        else
+        {
+                result.fail_num += 1;
         }
 
 	return(result);

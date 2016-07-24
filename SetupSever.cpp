@@ -779,6 +779,18 @@ run_diagnose_and_repair(INDEX_NODE *root)
 			}
 			break;
 		case 2:
+			INDEX_NODE *new_root;
+			new_root = repair_and_rebuild_index_tree(root);
+			if(!new_root)
+			{
+				cout<<"Re-build index tree failed.\n"<<endl;
+			}
+			else
+			{
+				cout<<"Re-build index tree successed.\n"<<endl;
+				root = new_root;
+			}
+                        break;
 		case 3:
 			cout<<"Not finished yet!\n"<<endl;
 			break;
