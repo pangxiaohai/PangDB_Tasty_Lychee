@@ -37,12 +37,11 @@ RUN_RESULT insert_to_file(char *, DATA_RECORD *);
 RUN_RESULT delete_from_file(char *, DATA_RECORD *);
 RUN_RESULT exec_delete_from_file(DATA_RECORD *, fstream &);
 RUN_RESULT update_to_file(char *, DATA_RECORD *);
-void exec_insert_index_node(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *);
+void exec_insert_index_node(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *, IDX_BOOL);
 RUN_RESULT insert_sub_tree(INDEX_NODE *, INDEX_NODE *, INDEX_NODE *);
-void exec_delete_a_sub_tree(INDEX_NODE *, INDEX_NODE_LINK *, IDX_BOOL, 
-		INDEX_NODE *, LEAF_NODE *, LEAF_NODE *, LEAF_NODE *);
+void exec_delete_a_sub_tree(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *);
 INDEX_NODE *batch_insert(INDEX_NODE *, DATA_RECORD_LIST *);
-INDEX_NODE *bactch_delete(INDEX_NODE *, int, int);
+INDEX_NODE *batch_delete(INDEX_NODE *, int, int);
 SUB_TREE_LIST_INFO *get_sub_tree_info(INDEX_NODE *, LEAF_NODE *, LEAF_NODE *);
 SUB_TREE_INFO_LINK *analyze_influence_sub_tree(INDEX_NODE *, INDEX_NODE *, int, int);
 LEAF_NODE *quick_search_special(INDEX_NODE *, FIRST_OR_LAST);
@@ -976,7 +975,11 @@ delete_node(INDEX_NODE *root, int key)
 	/*If there is only one leaf left.*/
 	if(front_leaf == back_leaf)
 	{
+		exec_write_log(FAKE_PID, DELETE,target_leaf->data_record);
 		target_leaf->data_record->key = 0;
+		free(target_leaf->data_record->value);
+		target_leaf->data_record->value = NULL;
+		free(target_leaf->data_record);
 		target_leaf->data_record = NULL;
 
 		free(target_leaf);
@@ -1000,10 +1003,19 @@ delete_node(INDEX_NODE *root, int key)
 	}
 	
 	INDEX_NODE *target_node = (INDEX_NODE *)target_leaf;
-	exec_delete_a_sub_tree(root, cur_linked_index, FALSE, 
-		target_node, front_leaf, back_leaf, target_leaf);
 
-	exec_write_log(FAKE_PID, DELETE, node_path_info->end_leaf->data_record);
+	/*Delete node will free memory. Save the data to write log here.*/
+	DATA_RECORD *log_data;
+	log_data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+	log_data->key = target_leaf->data_record->key;
+	log_data->len = target_leaf->data_record->len;
+	log_data->value = create_n_byte_mem(log_data->len + 1);
+	(log_data->value)[log_data->len] = '\0';
+	strncpy(log_data->value, target_leaf->data_record->value, log_data->len);
+	
+	exec_delete_a_sub_tree(root, cur_linked_index, target_node);
+
+	exec_write_log(FAKE_PID, DELETE, log_data);
 		
 	/*
         free_write_index_lock(analyze_res->index_link);
@@ -1011,6 +1023,10 @@ delete_node(INDEX_NODE *root, int key)
         free_write_leaf_lock(analyze_res->leaf_link);
         */
 
+	free(log_data->value);
+	log_data->value = NULL;
+	free(log_data);
+	log_data = NULL;
         free_node_analyze_res_mem(analyze_res);
         free_node_path_info_mem(node_path_info);
 	analyze_res = NULL;
@@ -1042,6 +1058,7 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
 	}
 
 	int find_key = node_path_info->end_leaf->pri_key;
+
 	if(find_key == key)
 	{
 		cout<<"The key already exists!\n"<<endl;
@@ -1080,15 +1097,22 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
 	int insert_pos, cur_key_num, i;
 	
 	LEAF_NODE *new_leaf = create_leaf_mem();
-	new_leaf->data_record = data_record;
+	new_leaf->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+	new_leaf->data_record->key = data_record->key;
+	new_leaf->data_record->len = data_record->len;
+	new_leaf->data_record->value = create_n_byte_mem(data_record->len + 1);
+	(new_leaf->data_record->value)[data_record->len] = '\0';
+	strncpy(new_leaf->data_record->value, data_record->value, data_record->len);
 	new_leaf->node_type = LEAF_NODE_TYPE;
 	new_leaf->node_lock = NO_LOCK;
 	new_leaf->pri_key = key;
-	
+	new_leaf->front_node = NULL;
+	new_leaf->back_node = NULL;
+
 	/*Link the leaf*/
 	LEAF_NODE *first = leaf_link->leaf_node;
 	LEAF_NODE *second = leaf_link->next_link->leaf_node;
-	
+
 	if(!first)
 	{
 		second->front_node = new_leaf;
@@ -1115,10 +1139,8 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
 		cur_link = cur_link->next_link;
 	}
 
-	exec_insert_index_node(root, cur_link, new_node);
-
-	exec_write_log(FAKE_PID, INSERT, data_record);
-
+	exec_insert_index_node(root, cur_link, new_node, FALSE);
+	
 	/*
 	free_write_index_lock(analyze_res->index_link);
         free_write_leaf_lock(analyze_res->leaf_link);
@@ -1129,6 +1151,8 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
        	analyze_res = NULL;
        	node_path_info = NULL;
 
+	exec_write_log(FAKE_PID, INSERT, data_record);
+
         return(RUN_SUCCESS);	
 }
 
@@ -1136,8 +1160,22 @@ insert_node(INDEX_NODE *root, DATA_RECORD *data_record)
 INDEX_NODE *
 split_node(INDEX_NODE *target_node, int key_num, int *key_list, INDEX_NODE **p_list)
 {
-	int key_num_1 = (int)ceil(0.5*(key_num/2));
-	int key_num_2 = key_num - key_num_1;
+	/*For Test.*/
+	int old_key_num = target_node->key_num;
+	/*
+	for(int j = 0; j != key_num; j++)
+	{
+		cout<<key_list[j]<<endl;
+	}
+	
+	for(int t = 0; t != key_num + 1; t++)
+        {
+                cout<<p_list[t]->pri_key<<endl;
+        }
+	*/
+	
+	int key_num_1 = (int)ceil((key_num - 1)/2);
+	int key_num_2 = key_num - key_num_1 - 1;
 	int i;
 	
 	INDEX_NODE *new_node;
@@ -1157,10 +1195,11 @@ split_node(INDEX_NODE *target_node, int key_num, int *key_list, INDEX_NODE **p_l
 	/*A key will be removed. It will be new node's pri_key*/
 	for(i = 0; i< key_num_2; ++i)
 	{
-		target_node->key_list[i] = key_list[key_num_1 + i];
-		target_node->p_node[i] = p_list[key_num_1 + i];
+		target_node->key_list[i] = key_list[key_num_1 +1 + i];
+		target_node->p_node[i] = p_list[key_num_1 + 1 +i];
 	}
-	target_node->p_node[key_num_2] = p_list[key_num_1 + key_num_2];
+	target_node->p_node[key_num_2] = p_list[key_num_1 + key_num_2 + 1];
+	target_node->pri_key = target_node->p_node[key_num_2]->pri_key;
 	target_node->key_num = key_num_2;
 
 	return(new_node);
@@ -1341,6 +1380,7 @@ analyze_insert_influnce_nodes(NODE_PATH_INFO *node_path, int key)
 		leaf_link->leaf_node = find_leaf;
 		SINGLE_LEAF_LINK *second_leaf = create_single_leaf_link_mem();
                 leaf_link->next_link = second_leaf;
+
 		if(find_leaf->back_node)
 		{
                 	second_leaf->leaf_node = find_leaf->back_node;
@@ -1570,8 +1610,9 @@ exec_delete_from_file(DATA_RECORD *data_record, fstream &file)
 INDEX_NODE *
 batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list)
 {
+	draw_a_tree(root);
 	DATA_INFO *data_info = get_data_info(data_list);
-	
+
 	if(!data_info->num)
 	{
 		cout<<"No avalible data!"<<endl;
@@ -1581,6 +1622,8 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list)
 	/*Sort the data*/
 	DATA_RECORD_LIST *sorted_list;
 	sorted_list = quick_sort(data_list, data_info->num);
+
+	test_list(sorted_list, data_info->num, OFF);
 
 	if(check_duplicate_data(sorted_list, SORT))
 	{
@@ -1605,6 +1648,10 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list)
 	SUB_TREE_LIST_INFO *sub_tree_list_info;
 	sub_tree_list_info = get_sub_tree_info(root, begin_leaf, end_leaf);
 
+	/*For Test*/
+	show_sub_tree_info_link(sub_tree_list_info->sub_tree_info_link, OFF);
+	test_list(sub_tree_list_info->data_list, sub_tree_list_info->leaf_num, OFF);
+
 	/*
 	if(!apply_write_sub_tree_lock(sub_tree_list_info->sub_tree_info_link)) 
 	{
@@ -1619,11 +1666,16 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list)
 	DATA_RECORD_LIST *new_data_list;
 	new_data_list = merge_sort(sub_tree_list_info->data_list, sorted_list);
 
+	test_list(new_data_list, leaf_num, OFF);
+
 	/*Need not to use mk_index since it will sort data list again.*/
 	LEAF_NODE *new_leaf_list = link_list(new_data_list, leaf_num);
 	
 	INDEX_NODE *new_sub;
 	new_sub = generate_non_leaf(new_leaf_list, leaf_num);	
+
+	/*For test*/
+	//draw_a_tree(new_sub);
 
 	/*The whole tree is covered, just replace it.*/
 	if((!(begin_leaf->front_node)) && (!(end_leaf->back_node)))
@@ -1632,10 +1684,12 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list)
 		root = NULL;
 		return(new_sub);
 	}
-	
+
 	/*Execute delete theses sub trees*/
 	exec_delete_sub_trees(root, sub_tree_list_info);
 
+	/*Data list have been freed when delete sub trees.
+	Do not double free here.*/
 	free_sub_tree_list_info_mem(sub_tree_list_info);
 	sub_tree_list_info = NULL;
 
@@ -1648,7 +1702,7 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list)
 		new_place_link = new_place_link->next_link;
 	}
 
-	exec_insert_index_node(root, new_place_link, new_sub);
+	exec_insert_index_node(root, new_place_link, new_sub, FALSE);
 
 	/*Need to re-balance the whole tree after batch delete.*/
         //re_balance_tree(root);
@@ -1674,20 +1728,7 @@ exec_delete_sub_trees(INDEX_NODE *root, SUB_TREE_LIST_INFO *sub_tree_list_info)
                         cur_linked_index = cur_linked_index->next_link;
                 }
 
-                LEAF_NODE *front = cur_link->begin_leaf;
-                if(!front->front_node)
-                {
-                        front = front->front_node;
-                }
-
-                LEAF_NODE *back = cur_link->end_leaf;
-                if(!back->back_node)
-                {
-                        back = back->back_node;
-                }
-
-                exec_delete_a_sub_tree(root, cur_linked_index, cur_link->is_leaf,
-                        cur_link->sub_root, front, back, cur_link->begin_leaf);
+                exec_delete_a_sub_tree(root, cur_linked_index, cur_link->sub_root);
 
                 cur_link = cur_link->next_link;
 
@@ -1696,17 +1737,7 @@ exec_delete_sub_trees(INDEX_NODE *root, SUB_TREE_LIST_INFO *sub_tree_list_info)
 
         }
 
-        cur_link = sub_tree_list_info->sub_tree_info_link;
-
-        /*After delete a sub tree, free its memory immediately may lead problem that
-        cannot find front node before the begin leaf.*/
-        while(cur_link)
-        {
-                free_a_tree_mem(cur_link->sub_root);
-                cur_link->sub_root = NULL;
-                cur_link = cur_link->next_link;
-        }
-	
+	/*Sub trees have been freed when executing delet.*/
 	return;
 }
 
@@ -1780,7 +1811,7 @@ analyze_influence_sub_tree(INDEX_NODE *sub_root, INDEX_NODE *parent, int low, in
 	LEAF_NODE *first, *last;
 	first = quick_search_special(sub_root, FIRST_NODE);
 	last = quick_search_special(sub_root, LAST_NODE);
-	
+
 	IDX_BOOL is_first = FALSE;
 	IDX_BOOL is_last = FALSE;
 	int real_low, real_high;
@@ -1852,11 +1883,21 @@ analyze_influence_sub_tree(INDEX_NODE *sub_root, INDEX_NODE *parent, int low, in
 		
 		for(i = 1; i != sub_num; ++i)
 		{
-			range_list[i] = sub_root->key_list[low_pos + i];
+			range_list[i] = sub_root->key_list[low_pos -1 + i];
 		}
 
+		/*For test*/
+		/*
+		for(i = 0; i != sub_num; ++i)
+		{
+			cout<<range_list[i]<<"   ";
+		}
+		cout<<endl;
+		*/
+
 		SUB_TREE_INFO_LINK *cur_sub, *new_sub;
-	
+
+		i = 0;
 		/*Seach all sub trees and link the info.*/	
 		cur_sub = analyze_influence_sub_tree(sub_root->p_node[low_pos + i],
                         sub_root, range_list[i], range_list[i+1]);
@@ -1919,7 +1960,15 @@ fetch_leaf_list_data_info(LEAF_NODE *begin, LEAF_NODE *end)
 	while(cur_leaf != end->back_node)
 	{
 		new_data = (DATA_RECORD_LIST *)malloc(sizeof(DATA_RECORD_LIST));
-                new_data->data_record = cur_leaf->data_record;
+		
+		/*Since when deleting sub trees, leaves will be freed,
+		must save data here.*/
+		new_data->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+                new_data->data_record->key = cur_leaf->data_record->key;
+		new_data->data_record->len = cur_leaf->data_record->len;
+		new_data->data_record->value = create_n_byte_mem(new_data->data_record->len+1);
+		(new_data->data_record->value)[new_data->data_record->len] = '\0';
+		strncpy(new_data->data_record->value, cur_leaf->data_record->value, new_data->data_record->len);
                 new_data->next_data = NULL;
 	
 		if(is_first)
@@ -1966,7 +2015,7 @@ insert_sub_tree(INDEX_NODE *root, INDEX_NODE *target, INDEX_NODE *sub_tree)
 		cur_link = cur_link->next_link;
 	}
 
-	exec_insert_index_node(root, cur_link, sub_tree);
+	exec_insert_index_node(root, cur_link, sub_tree, FALSE);
 	
 	return(RUN_SUCCESS);
 }
@@ -2028,44 +2077,46 @@ fetch_index_path(INDEX_NODE *root, INDEX_NODE *target)
 
 /*This is used to execute insert a index node.*/
 void
-exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NODE *new_node)
+exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NODE *new_node, IDX_BOOL has_split)
 {
-        int new_key = new_node->pri_key;
 	INDEX_NODE_LINK *cur_link = target_link;
-	int insert_pos, cur_key_num, i;
-	int key = new_node->pri_key;
+	int insert_pos, cur_key_num, i, new_key;
+	int key = new_node->pri_key, old_pri, largest_old_key = 0;
 
         int new_key_list[MAXKEYNUM];
         INDEX_NODE *new_p_list[MAXKEYNUM + 1];
         while(cur_link)
         {
+		new_key = new_node->pri_key;
                 insert_pos = fetch_pos(cur_link->index_node, new_key);
+		
                 cur_key_num = cur_link->index_node->key_num;
-                int old_pri = cur_link->index_node->pri_key;
+                old_pri = cur_link->index_node->pri_key;
 
-                for(i=0; i < insert_pos; ++i)
+                for(i=0; i != insert_pos; ++i)
                 {
                         new_key_list[i] = cur_link->index_node->key_list[i];
                         new_p_list[i] = cur_link->index_node->p_node[i];
                 }
 
+		largest_old_key = cur_link->index_node->p_node[cur_key_num]->pri_key;
 		/*Consider the situation that new key will not be added. 
 		The new added key is produced from a node which is not included before.
 		This situation happens when inserting largest key to a node.*/
-		if(insert_pos == cur_key_num &&
-                        key > cur_link->index_node->key_list[cur_key_num - 1])
+		/*All new nodes produced by splitting node cannot be real last one.*/
+		if(((insert_pos == cur_key_num) && (!has_split)) &&
+                        (new_key > largest_old_key))
 		{
-			new_key_list[cur_key_num] = 
-				cur_link->index_node->p_node[cur_key_num]->pri_key;
 			new_p_list[cur_key_num] = cur_link->index_node->p_node[cur_key_num];
 			new_p_list[cur_key_num + 1] = new_node;
+			new_key_list[cur_key_num] = largest_old_key;
 		}
 		else
 		{
                 	new_key_list[insert_pos] = new_key;
                 	new_p_list[insert_pos] = new_node;
 
-	                for(i = insert_pos+1; i < cur_key_num + 1; ++i)
+	                for(i = insert_pos+1; i != cur_key_num + 1; ++i)
         	        {
                 	        new_key_list[i] = cur_link->index_node->key_list[i-1];
                         	new_p_list[i] = cur_link->index_node->p_node[i-1];
@@ -2073,6 +2124,14 @@ exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NOD
                 	new_p_list[cur_key_num + 1] = cur_link->index_node->p_node[cur_key_num];
 		}
 
+		/*For test*/
+		/*
+		for(int t = 0; t != cur_key_num+1; ++t)
+		{
+			cout<<new_key_list[t]<<"  ";
+		}
+		cout<<endl;
+		*/
                 /*No need to split node*/
                 if(cur_key_num + 1 <= MAXKEYNUM)
                 {
@@ -2096,14 +2155,17 @@ exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NOD
                                 cur_link = cur_link->front_link;
                         }
 
-                        break;
+                        return;
                 }
                 else
                 {
                         /*Need further split*/
                         new_node = split_node(cur_link->index_node,
-                                        cur_key_num, new_key_list, new_p_list);
+                                        cur_key_num + 1, new_key_list, new_p_list);
                         new_key = new_node->pri_key;
+			
+			/*After split, all new added node are not real last one.*/
+			has_split = TRUE;
 
                         if(cur_link->index_node != root)
                         {
@@ -2124,7 +2186,7 @@ exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NOD
                                 old_root->p_node[0] = new_node;
 
                                 /*Do not need further split*/
-                                break;
+                                return;
                         }
                 }
         }
@@ -2135,75 +2197,91 @@ exec_insert_index_node(INDEX_NODE *root, INDEX_NODE_LINK *target_link, INDEX_NOD
 /*This is used to delete a sub tree.*/
 /*A leaf is treated as a special sub tree.*/
 /*Delete will not change pri_key.*/
+/*Refactor it 7/26*/
 void
-exec_delete_a_sub_tree(INDEX_NODE *root, INDEX_NODE_LINK *cur_linked_index, IDX_BOOL is_leaf, 
-	INDEX_NODE *sub_root, LEAF_NODE *front_leaf, LEAF_NODE *back_leaf, LEAF_NODE *target_leaf)
+exec_delete_a_sub_tree(INDEX_NODE *root, INDEX_NODE_LINK *cur_linked_index, INDEX_NODE *sub_root)
 {
-	/*If it is a leaf, remove the leaf*/	
-	if(is_leaf)
-	{
-        	/*If it is the first leaf*/
-        	if(front_leaf == target_leaf)
-        	{
-                	target_leaf->back_node = NULL;
-	                back_leaf->front_node = NULL;
-        	        free(target_leaf);
-                	target_leaf = NULL;
-	        }
-
-	        /*If it is the last leaf.*/
-        	else if(target_leaf == back_leaf)
-	        {
-        	        front_leaf->back_node = NULL;
-                	target_leaf->front_node = NULL;
-	                free(target_leaf);
-        	        target_leaf = NULL;
-	        }
-        	else
-        	{
-                	front_leaf->back_node = back_leaf;
-	                back_leaf->front_node = front_leaf;
-        	        target_leaf->back_node = NULL;
-                	target_leaf->front_node = NULL;
-	                free(target_leaf);
-        	        target_leaf = NULL;
-	        }
-	}
-	else
-	{
-		/*Dislink the leaf list.*/
-		LEAF_NODE *last_target;
-		last_target = back_leaf->front_node;
-		
-		if(front_leaf == target_leaf)
-                {
-			back_leaf->front_node = NULL;
-			last_target->back_node = NULL;
-		}
-		else if(target_leaf == back_leaf)
-		{
-			front_leaf->back_node = NULL;
-			target_leaf->front_node = NULL;
-		}
-		else
-		{
-			front_leaf->back_node = back_leaf;
-			back_leaf->front_node = front_leaf;
-			target_leaf->front_node = NULL;
-			last_target->back_node = NULL;
-		}
-	}
-
-	
 	int cur_key_num =  cur_linked_index->index_node->key_num;
 
-	int key = sub_root->pri_key;
+        int key = sub_root->pri_key;
 
         int pos = fetch_pos(cur_linked_index->index_node, key);
 
-	int i;
+        int i;
 
-        /*Remove the link to target node firstly.*/
+	/*Delete a leaf node.*/
+	if(is_leaf_node(sub_root))
+	{
+		LEAF_NODE *target_leaf, *front_leaf, *back_leaf;
+		target_leaf = (LEAF_NODE *)sub_root;
+
+		front_leaf = target_leaf->front_node;
+		back_leaf = target_leaf->back_node;
+
+		/*If it is the first leaf*/
+                if(!front_leaf)
+                {
+                        target_leaf->back_node = NULL;
+                        back_leaf->front_node = NULL;
+                        free_a_leaf_mem(target_leaf);
+                        target_leaf = NULL;
+                }
+
+                /*If it is the last leaf.*/
+                else if(!back_leaf)
+                {
+                        front_leaf->back_node = NULL;
+                        target_leaf->front_node = NULL;
+                        free_a_leaf_mem(target_leaf);
+                        target_leaf = NULL;
+                }
+                else
+                {
+                        front_leaf->back_node = back_leaf;
+                        back_leaf->front_node = front_leaf;
+                        target_leaf->back_node = NULL;
+                        target_leaf->front_node = NULL;
+                        free_a_leaf_mem(target_leaf);
+                        target_leaf = NULL;
+                }
+	}
+	else
+	{
+		LEAF_NODE *first = quick_search_special(sub_root, FIRST_NODE);
+		LEAF_NODE *last = quick_search_special(sub_root, LAST_NODE);
+		LEAF_NODE *target_leaf, *front_leaf, *back_leaf;
+                target_leaf = first;
+
+                front_leaf = target_leaf->front_node;
+                back_leaf = target_leaf->back_node;
+
+		/*If it is the first leaf*/
+                if(!front_leaf)
+                {
+                        last->back_node = NULL;
+                        back_leaf->front_node = NULL;
+                }
+
+                /*If it is the last leaf.*/
+                else if(!back_leaf)
+                {
+                        front_leaf->back_node = NULL;
+                        first->front_node = NULL;
+                }
+                else
+                {
+                        front_leaf->back_node = back_leaf;
+                        back_leaf->front_node = front_leaf;
+                        last->back_node = NULL;
+                        first->front_node = NULL;
+                }
+		
+		/*After dislink leaf list. Free the sub tree.*/
+		free_a_tree_mem(sub_root);
+		sub_root = NULL;
+	}
+
+	/*Remove the link to target node firstly.*/
         for(i = pos; i != cur_key_num; ++i)
         {
                 cur_linked_index->index_node->key_list[i]
@@ -2211,19 +2289,103 @@ exec_delete_a_sub_tree(INDEX_NODE *root, INDEX_NODE_LINK *cur_linked_index, IDX_
                 cur_linked_index->index_node->p_node[i] =
                         cur_linked_index->index_node->p_node[i+1];
         }
-	
-        /*Remove the last key.*/
+
+        /*Remove the last key. Pri_key will not be changed.*/
         cur_linked_index->index_node->key_list[cur_key_num - 1] = 0;
         cur_linked_index->index_node->p_node[cur_key_num] = NULL;
 
         cur_linked_index->index_node->key_num-- ;
         cur_key_num--;
 
-
-        /*Then merge nodes.*/
+	/*Then merge nodes.*/
         if(cur_key_num < LEAST_P_NUM - 1)
         {
-                /*Need to merge node.*/
+		/*Delete from root need to be handled specially.*/
+		if(cur_linked_index->index_node == root)
+		{
+			INDEX_NODE *new_root_idx = NULL;
+			int child_mark = 0;
+			for(child_mark = 0; child_mark != cur_key_num+1; ++ child_mark)
+			{
+				if(!is_leaf_node(root->p_node[child_mark]))
+				{
+					/*Move the first one.*/
+					new_root_idx = root->p_node[child_mark]->p_node[0];
+					break;
+				}
+
+			}
+			
+			/*If all children of root are leaf node, no need to handle.*/
+			if(!new_root_idx)
+			{
+				return;
+			}
+			
+			int root_i = cur_key_num;
+			/*Move will lead this child merge. So directly move all of its children.*/
+			/*Since root has LEAST_P_NUM - 2 keys now, it wouldn't lead split again.*/
+			if(root->p_node[child_mark]->key_num == LEAST_P_NUM - 1)
+			{
+				new_root_idx = root->p_node[child_mark];
+
+				for(root_i = cur_key_num; root_i != child_mark; root_i --)
+				{
+					root->p_node[root_i + LEAST_P_NUM - 1] = root->p_node[root_i];
+					root->key_list[root_i + LEAST_P_NUM - 2] 
+							= root->key_list[root_i - 1];
+				}
+				
+				/*Insert new children.*/
+				for(root_i = 0; root_i != LEAST_P_NUM - 1; root_i ++);
+				{
+					root->p_node[child_mark + root_i] = new_root_idx->p_node[root_i];
+					root->key_list[child_mark + root_i] = new_root_idx->key_list[root_i];
+				}
+				
+				root->p_node[child_mark + LEAST_P_NUM - 1] = new_root_idx->p_node[LEAST_P_NUM];
+				root->key_num = cur_key_num + LEAST_P_NUM - 1;
+	
+				/*free this node.*/	
+				free(new_root_idx);
+				new_root_idx = NULL;	
+	
+				/*No need to change pri_key.*/
+				return;
+			}
+		
+			INDEX_NODE *old_idx = root->p_node[child_mark];
+
+			int new_root_child_key = new_root_idx->pri_key;
+			int child_num = old_idx->key_num;
+			
+			for(root_i = cur_key_num; root_i != child_mark; root_i --)
+                        {
+                                root->p_node[root_i + 1] = root->p_node[root_i];
+                                root->key_list[root_i]
+                                                  = root->key_list[root_i - 1];
+                        }
+			root->p_node[child_mark + 1] = root->p_node[child_mark];
+			root->p_node[child_mark] = new_root_idx;
+			root->key_list[child_mark] = new_root_child_key;
+			root->key_num ++;
+			
+			/*Delete it from the child.*/
+			for(root_i = 0; root_i != child_num - 1; ++root_i)
+			{
+				old_idx->p_node[i] = old_idx->p_node[i+1];
+				old_idx->key_list[i] = old_idx->key_list[i+1];
+			}
+			old_idx->p_node[child_num - 1] = old_idx->p_node[child_num];
+			old_idx->p_node[child_num] = NULL;
+			old_idx->key_list[child_num - 1] = 0;
+			old_idx->key_num --;
+			
+			/*Pri_key will not be changed, either.*/
+			return;
+		}
+
+                /*Need to merge node. Since it is not root, next_linked_index must exist.*/
                 INDEX_NODE_LINK *next_linked_index;
                 next_linked_index = cur_linked_index->front_link;
 
@@ -2232,167 +2394,91 @@ exec_delete_a_sub_tree(INDEX_NODE *root, INDEX_NODE_LINK *cur_linked_index, IDX_
                                 cur_linked_index->index_node->pri_key);
                 int next_key_num = next_linked_index->index_node->key_num;
 
-                int child_pri = cur_linked_index->index_node->pri_key;
-                int father_pri = next_linked_index->index_node->pri_key;
-
                 int new_key_list[2*MAXKEYNUM];
                 INDEX_NODE *new_p_list[2*MAXKEYNUM];
+	
+		for(i = 0; i != insert_pos; ++i)
+		{
+			new_p_list[i] = next_linked_index->index_node->p_node[i];
+			new_key_list[i] = next_linked_index->index_node->key_list[i];
+		}
+		
+		for(i = 0; i!= key_to_move; ++i)
+		{
+			new_p_list[i + insert_pos] = cur_linked_index->index_node->p_node[i];
+			new_key_list[i + insert_pos] = cur_linked_index->index_node->key_list[i];
+		}
+		
+		new_p_list[insert_pos + key_to_move] = cur_linked_index->index_node->p_node[key_to_move];
+		
+		/*Original p_node[insert_pos] will be delete.*/
+		for(i = 0; i != next_key_num - insert_pos; ++i)
+		{
+			new_p_list[i + insert_pos + key_to_move + 1]  
+				= next_linked_index->index_node->p_node[insert_pos + i + 1];
+			new_key_list[i + insert_pos + key_to_move] 
+				= next_linked_index->index_node->key_list[insert_pos + i];
+		} 
+		
+		/*This node will be delete.*/
+		free(cur_linked_index->index_node);
+		cur_linked_index->index_node = NULL;
 
-                for(i = 0; i < insert_pos; ++i)
-                {
-                        new_key_list[i] = next_linked_index->index_node->key_list[i];
-                        new_p_list[i] = next_linked_index->index_node->p_node[i];
-                }
+		/*No need to further split.*/
+		if(next_key_num + key_to_move <= MAXKEYNUM)
+		{
+			int new_key_num = next_key_num + key_to_move;
+			for(i = 0; i != new_key_num; ++i)
+			{
+				next_linked_index->index_node->p_node[i] = new_p_list[i];
+				next_linked_index->index_node->key_list[i] = new_key_list[i];
+			}
+			next_linked_index->index_node->p_node[new_key_num] = new_p_list[new_key_num];
+			next_linked_index->index_node->key_num = new_key_num;
 
-                for(i = 0; i < key_to_move; ++i)
-                {
-                        new_key_list[i + insert_pos] =
-                                cur_linked_index->index_node->key_list[i];
-                        new_p_list[i + insert_pos] =
-                                cur_linked_index->index_node->p_node[i];
-                }
-
-                new_p_list[insert_pos + key_to_move] =
-                                cur_linked_index->index_node->p_node[key_to_move];
-
-
-                /*p_node[insert_pos] in next node will be delete.*/
-                for(i = 0; i < next_key_num  - insert_pos; ++i)
-                {
-                        new_key_list[i + insert_pos + key_to_move] =
-                                next_linked_index->index_node->key_list[insert_pos + i];
-                        new_p_list[i + insert_pos + key_to_move + 1] =
-                                next_linked_index->index_node->p_node[insert_pos + 1 + i];
-                }
-
-                /*For Test*/
-                /*
-                for(i = 0; i != next_key_num + key_to_move; ++i)
-                {
-                        cout<<new_key_list[i]<<"\n";
-                }
-                cout<<"********************"<<endl;
-                cout<<key_to_move<<"###"<<next_key_num<<endl;
-                */
-
-                /*No need to split.*/
-                if(next_key_num + key_to_move <= MAXKEYNUM)
-                {
-                        for(i = 0; i < next_key_num + key_to_move; ++i)
-                        {
-                                next_linked_index->index_node->key_list[i]
-                                        = new_key_list[i];
-                                next_linked_index->index_node->p_node[i]
-                                        = new_p_list[i];
-                        }
-                        next_linked_index->index_node->p_node[next_key_num + key_to_move]
-                                = new_p_list[next_key_num + key_to_move];
-                        next_linked_index->index_node->pri_key = child_pri > father_pri ? child_pri : father_pri;
-                        next_linked_index->index_node->key_num = next_key_num + key_to_move;
-
-                        return;
-                }
-
-
-                /*Need to split nodes.*/
-                INDEX_NODE *new_index_node;
-                new_index_node = split_node(next_linked_index->index_node,
+			/*Delete would not change any pri_key.*/
+			return;
+		}
+		else
+		{
+			INDEX_NODE *new_insert_node;
+                	new_insert_node = split_node(next_linked_index->index_node,
                                 next_key_num + key_to_move, new_key_list, new_p_list);
 
-                free(cur_linked_index->index_node);
-                cur_linked_index = next_linked_index;
-
-                /*Since the node need to split, next node must exsit.*/
-                next_linked_index = next_linked_index->front_link;
-                while(next_linked_index)
-                {
-                        insert_pos = fetch_pos(next_linked_index->index_node, new_index_node->pri_key);
-
-                        next_key_num = next_linked_index->index_node->key_num;
-
-                        for(i = 0; i < insert_pos; ++i)
+			/*Do the insert.*/
+			if(next_linked_index->index_node != root)
                         {
-                                new_key_list[i] = next_linked_index->index_node->key_list[i];
-                                new_p_list[i] = next_linked_index->index_node->p_node[i];
-                        }
-
-                        new_key_list[insert_pos] = new_index_node->pri_key;
-                        new_p_list[insert_pos] = new_index_node;
-
-                        for(i = insert_pos; i < next_key_num; i++)
-                        {
-                                new_key_list[i+1] =
-                                        next_linked_index->index_node->key_list[i];
-                                new_p_list[i+1] = next_linked_index->index_node->p_node[i];
-                        }
-                        new_p_list[next_key_num + 1] = next_linked_index->index_node->p_node[next_key_num];
-
-                        key_to_move = 1;
-
-                        /*Need further split.*/
-                        if(next_key_num + 1 > MAXKEYNUM)
-                        {
-                                new_index_node = split_node(next_linked_index->index_node,
-                                        next_key_num + 1, new_key_list, new_p_list);
-
-
-                                if(next_linked_index->index_node != root)
-                                {
-                                        next_linked_index = next_linked_index->front_link;
-                                }
-                                else
-                                {
-                                        /*Need to split root.*/
-                                        INDEX_NODE *old_root;
-                                        old_root = next_linked_index->index_node;
-
-                                        int old_key_num = old_root->key_num;
-
-                                        old_root->p_node[old_key_num+1] = old_root->p_node[old_key_num];
-                                        for(i = old_key_num; i != 0; i--)
-                                        {
-                                                old_root->key_list[i] = old_root->key_list[i - 1];
-                                                old_root->p_node[i] = old_root->p_node[i - 1];
-                                        }
-                                        old_root->key_list[0] = new_index_node->pri_key;
-                                        old_root->p_node[0] = new_index_node;
-
-                                        /*Root address will not be changed.*/
-                                        break;
-                                }
+                                next_linked_index = next_linked_index->front_link;
+				exec_insert_index_node(root, next_linked_index, new_insert_node, TRUE);
+				return;
                         }
                         else
                         {
-                                for(i = 0; i < next_key_num + 1; ++i)
+                                /*Need to split root.*/
+                                INDEX_NODE *old_root;
+                                old_root = next_linked_index->index_node;
+
+                               	int old_root_key_num = old_root->key_num;
+
+                                old_root->p_node[old_root_key_num+1] = old_root->p_node[old_root_key_num];
+                                for(i = old_root_key_num; i != 0; i--)
                                 {
-                                        next_linked_index->index_node->key_list[i]
-                                                = new_key_list[i];
-                                        next_linked_index->index_node->p_node[i]
-                                                = new_p_list[i];
+                                        old_root->key_list[i] = old_root->key_list[i - 1];
+                                        old_root->p_node[i] = old_root->p_node[i - 1];
                                 }
-                                next_linked_index->index_node->p_node[next_key_num + 1]
-                                                = new_p_list[next_key_num + 1];
-                                next_linked_index->index_node->pri_key = new_key_list[next_key_num + 1];
-                                next_linked_index->index_node->key_num = next_key_num + 1;
+                                old_root->key_list[0] = new_insert_node->pri_key;
+                                old_root->p_node[0] = new_insert_node;
+				
+				return;
+			}
+		}
 
-                                /*Do not need further split.*/
-                                break;
-                        }
-                }
-        }
-
-	/*Need to free the whole sub tree mem*/
-	if(!is_leaf)
-	{
-		free_a_tree_mem(sub_root);
 	}
-
-	return;
 }
 
 /*This is used to batch delete.*/
 INDEX_NODE *
-bactch_delete(INDEX_NODE *root, int low, int high)
+batch_delete(INDEX_NODE *root, int low, int high)
 {
 	/*Analyze and lock leaf link list*/
         LEAF_NODE *begin_leaf, *end_leaf;
@@ -2409,7 +2495,7 @@ bactch_delete(INDEX_NODE *root, int low, int high)
 
         SUB_TREE_LIST_INFO *sub_tree_list_info;
         sub_tree_list_info = get_sub_tree_info(root, begin_leaf, end_leaf);
-
+		
 	/*Execute delete theses sub trees*/
         exec_delete_sub_trees(root, sub_tree_list_info);
 

@@ -407,7 +407,7 @@ re_generate_index_tree(INDEX_NODE *root, LEAF_NODE *begin, LEAF_NODE *end)
         LEAF_NODE *leaf_node_list;
         leaf_node_list = generate_leaf_node(data_info->data_list, data_info->num);
 	free_broken_index_tree(root);
-        free_leaf_list_memroy(begin, end, FORWARD);
+        free_leaf_list_mem(begin, end, FORWARD);
         root = NULL;
         begin = NULL;
         end = NULL;

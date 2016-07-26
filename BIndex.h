@@ -256,7 +256,8 @@ void free_sub_tree_list_info_mem(SUB_TREE_LIST_INFO *);
 void free_sub_tree_info_link_mem(SUB_TREE_INFO_LINK *);
 //void free_depth_info_mem(DEPTH_INFO *);
 void free_broken_index_tree(INDEX_NODE *);
-void free_leaf_list_memroy(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
+void free_leaf_list_mem(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
+void free_a_leaf_mem(LEAF_NODE *);
 
 /*Following for test support!*/
 RUN_RESULT run_mk_BIndex_test(INDEX_NODE *);
@@ -280,6 +281,9 @@ RUN_RESULT run_delete_test(INDEX_NODE *);
 RUN_RESULT run_insert_test(INDEX_NODE *);
 INDEX_NODE *test_init(void);
 RUN_RESULT run_data_recovery_test(void);
+RUN_RESULT run_batch_insert_test(INDEX_NODE *);
+void show_sub_tree_info_link(SUB_TREE_INFO_LINK *, ON_OFF);
+RUN_RESULT run_batch_delete_test(INDEX_NODE *);
 
 /*Following for supported operations.*/
 NODE_PATH_INFO *scan_node(INDEX_NODE *, int);
@@ -307,12 +311,11 @@ RUN_RESULT insert_to_file(char *, DATA_RECORD *);
 RUN_RESULT delete_from_file(char *, DATA_RECORD *);
 RUN_RESULT exec_delete_from_file(fstream, DATA_RECORD *);
 RUN_RESULT update_to_file(char *, DATA_RECORD *);
-void exec_insert_index_node(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *);
+void exec_insert_index_node(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *, IDX_BOOL);
 RUN_RESULT insert_sub_tree(INDEX_NODE *, INDEX_NODE *, INDEX_NODE *);
-void exec_delete_a_sub_tree(INDEX_NODE *, INDEX_NODE_LINK *, IDX_BOOL,
-                INDEX_NODE *, LEAF_NODE *, LEAF_NODE *, LEAF_NODE *);
+void exec_delete_a_sub_tree(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *);
 INDEX_NODE *batch_insert(INDEX_NODE *, DATA_RECORD_LIST *);
-INDEX_NODE *bactch_delete(INDEX_NODE *, int, int);
+INDEX_NODE *batch_delete(INDEX_NODE *, int, int);
 SUB_TREE_LIST_INFO *get_sub_tree_info(INDEX_NODE *, LEAF_NODE *, LEAF_NODE *);
 SUB_TREE_INFO_LINK *analyze_influence_sub_tree(INDEX_NODE *, INDEX_NODE *, int, int);
 LEAF_NODE *quick_search_special(INDEX_NODE *, FIRST_OR_LAST);

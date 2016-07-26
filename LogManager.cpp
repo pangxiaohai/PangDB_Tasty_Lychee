@@ -35,7 +35,8 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 	}
 	
 	int  value_len, res_len;
-	char log_buf[30];
+	char log_buf[31];
+	log_buf[30] = '\0';
 
 	value_len = data->len;
 	res_len = value_len + 25;

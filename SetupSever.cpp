@@ -638,7 +638,106 @@ run_bottom_search_operation(INDEX_NODE *root)
 void 
 run_batch_insert_operation(INDEX_NODE *root)
 {
-	cout<<"Batch operations has not tested!\n"<<endl;
+	string num_buf;
+	cout<<"Please input how many data to insert:"<<endl;
+	cin>>num_buf;
+	
+	if(!is_pure_digit(num_buf))
+	{
+		cout<<"Invalid input!"<<endl;
+		return;
+	}
+	
+	if(num_buf.length()>4)
+	{
+		cout<<"Too many data!"<<endl;
+		return;
+	}
+	int num;
+	sscanf(num_buf.c_str(), "%4d", &num);
+	if(num <= 0)
+	{
+		cout<<"Invalid input!"<<endl;
+		return;
+	}
+
+	int i = 0, key, len;
+	DATA_RECORD_LIST *data_list, *cur_data, *new_data;
+	data_list = NULL;
+	string key_buf, value_buf;	
+
+	while(i != num)
+	{
+		cout<<"Please input a key:"<<endl;
+		cin>>key_buf;
+		if(!is_pure_digit(key_buf))
+	        {
+        	        cout<<"Invalid key!\n"<<endl;
+                	continue;
+        	}
+
+        	if(key_buf.length()>10)
+        	{
+                	cout<<"Key is too long!\n"<<endl;
+                	continue;
+        	}
+
+	        sscanf(key_buf.c_str(), "%10d", &key);
+
+        	if(key<0)
+        	{
+                	cout<<"Negtive key is not supported."<<endl;
+                	continue;
+        	}
+        	else if(key > KEY_RANGE)
+        	{
+                	cout<<"Key is larger than key range."<<endl;
+                	continue;
+        	}
+		
+		cout<<"Please input a value:"<<endl;
+                cin>>value_buf;
+		if(i == 0)
+		{
+			data_list = create_data_record_list_mem();
+			data_list->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+			data_list->data_record->key = key;
+			len = value_buf.length();
+			data_list->data_record->len = len;
+			data_list->data_record->value = create_n_byte_mem(len+1);
+			data_list->data_record->value[len] = '\0';
+			strncpy(data_list->data_record->value, value_buf.c_str(), len);
+			cur_data = data_list;
+			data_list->next_data = NULL;
+		}
+		else
+		{
+                        new_data = create_data_record_list_mem();
+                        new_data->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+                        new_data->data_record->key = key;
+                        len = value_buf.length();
+                        new_data->data_record->len = len;
+                        new_data->data_record->value = create_n_byte_mem(len+1);
+                        new_data->data_record->value[len] = '\0';
+                        strncpy(new_data->data_record->value, value_buf.c_str(), len);
+                        new_data->next_data = NULL;
+			cur_data->next_data = new_data;
+			cur_data = cur_data->next_data;
+                }
+
+		i++;
+	}
+
+	if(batch_insert(root, data_list))
+	{
+		cout<<"Batch insert successed!"<<endl;
+	}
+	else
+	{
+		cout<<"Batch isnert failed!"<<endl;
+		free_data_record_list_mem(data_list);
+	}	
+
 	return;
 }
 
@@ -646,7 +745,76 @@ run_batch_insert_operation(INDEX_NODE *root)
 void 
 run_batch_delete_operation(INDEX_NODE *root)
 {
-	cout<<"Batch operations has not tested!\n"<<endl;
+	cout<<"Please input the low bound of delete range:"<<endl;
+	string low_buf;
+	cin>>low_buf;
+
+	if(!is_pure_digit(low_buf))
+        {
+                cout<<"Invalid key!\n"<<endl;
+                return;
+        }
+
+        if(low_buf.length()>10)
+        {
+                cout<<"Key is too long!\n"<<endl;
+                return;
+        }	
+	
+	int low;
+	sscanf(low_buf.c_str(), "%10d", &low);
+	
+	if(low<0)
+	{
+		cout<<"Negtive key is not supported. Replace it with 0.\n"<<endl;
+		low = 0;
+	}
+	else if(low > KEY_RANGE)
+	{
+		cout<<"Low bound is larger than key range. No key to delete."<<endl;
+		return;
+	}
+
+	cout<<"Please input the high bound of delete range:"<<endl;
+        string high_buf;
+        cin>>high_buf;
+
+        if(!is_pure_digit(high_buf))
+        {
+                cout<<"Invalid key!\n"<<endl;
+                return;
+        }
+
+        if(high_buf.length()>10)
+        {
+                cout<<"Key is too long!\n"<<endl;
+                return;
+        }
+
+        int high;
+        sscanf(high_buf.c_str(), "%10d", &high);
+
+        if(high < 0)
+        {
+                cout<<"High bound is less than 0. No key to delete.\n"<<endl;
+                return;
+        }
+        else if(high > KEY_RANGE)
+        {
+                cout<<"High bound is larger than key range. Replace it with largest key."<<endl;
+                high = KEY_RANGE + 1;
+        }
+	
+	cout<<"Do the batch delete!"<<endl;
+	cout<<"Delete range: "<<low<<"~"<<high<<endl;
+	if(batch_delete(root, low, high))
+	{
+		cout<<"Batch delete successed!"<<endl;
+	}
+	else
+	{
+		cout<<"Batch delete failed!"<<endl;
+	}
 	return;
 }
 

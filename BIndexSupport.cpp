@@ -53,7 +53,9 @@ char *create_n_byte_mem(int);
 ACTION get_action(int);
 IDX_BOOL is_pure_digit(string);
 void free_broken_index_tree(INDEX_NODE *);
-void free_leaf_list_memroy(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
+void free_leaf_list_mem(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
+void free_a_leaf_mem(LEAF_NODE *);
+void free_a_tree_mem(INDEX_NODE *);
 
 
 
@@ -528,7 +530,6 @@ create_sub_tree_list_info_mem(void)
 void
 free_sub_tree_list_info_mem(SUB_TREE_LIST_INFO *sub)
 {
-	free_data_record_list_mem(sub->data_list);
 	free_sub_tree_info_link_mem(sub->sub_tree_info_link);
 	free(sub);
 	sub = NULL;
@@ -682,7 +683,7 @@ free_broken_index_tree(INDEX_NODE *root)
 
 /*This is used to free a list of leaves' memory.*/
 void
-free_leaf_list_memroy(LEAF_NODE *begin, LEAF_NODE *end, SEARCH_DIR direction)
+free_leaf_list_mem(LEAF_NODE *begin, LEAF_NODE *end, SEARCH_DIR direction)
 {
 	LEAF_NODE *cur_leaf, *target;
 	cur_leaf = begin;
@@ -711,5 +712,16 @@ free_leaf_list_memroy(LEAF_NODE *begin, LEAF_NODE *end, SEARCH_DIR direction)
                 }
 	}
 	
+	return;
+}
+
+/*This is used to free a leaf memory.*/
+void
+free_a_leaf_mem(LEAF_NODE *leaf)
+{
+	free(leaf->data_record->value);
+	free(leaf->data_record);
+	free(leaf);
+	leaf = NULL;
 	return;
 }

@@ -547,6 +547,12 @@ merge_sort(DATA_RECORD_LIST* data_list_1, DATA_RECORD_LIST *data_list_2)
 			mov = cur_base->next_data;
 		}
 	}
-	
+
+	/*Link the rest data.*/	
+	if(!mov)
+	{
+		cur_base->next_data = cur_comp;
+	}
+
 	return(ret);
 }

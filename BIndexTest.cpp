@@ -32,7 +32,13 @@ RUN_RESULT run_update_test(INDEX_NODE *);
 RUN_RESULT run_delete_test(INDEX_NODE *);
 RUN_RESULT run_insert_test(INDEX_NODE *);
 RUN_RESULT run_data_recovery_test(void);
+RUN_RESULT run_batch_insert_test(INDEX_NODE *);
+void show_sub_tree_info_link(SUB_TREE_INFO_LINK *, ON_OFF);
+RUN_RESULT run_batch_delete_test(INDEX_NODE *);
 
+
+
+/*Following are functions to run different kinds of test.*/
 
 /*Run make BIndex Test.*/
 RUN_RESULT
@@ -404,6 +410,104 @@ run_data_recovery_test(void)
 	return(RUN_SUCCESS);
 }
 
+/*This is used to do batch insert test.*/
+RUN_RESULT
+run_batch_insert_test(INDEX_NODE *root)
+{
+	draw_a_tree(root);
+	DATA_RECORD_LIST *data_list, *new_data, *cur_data;
+	int begin = (int)ceil(KEY_RANGE/2);
+	IDX_BOOL is_first = TRUE;
+	char str[] = "batch insert";
+		
+	int num = 0, key;
+	cout<<"Generate 10 avaliable keys randomly.\n"<<endl;
+	
+	while(num != 10)
+	{
+		key = begin + (int)(rand()%(KEY_RANGE/5));
+		cout<<"Check new candidate key: "<<key<<endl;
+		if(!exec_read_value(root, key))
+		{
+			/*This key can be inserted.*/
+			cout<<"This is a valiable new key.\n"<<endl;
+			if(is_first)
+			{
+				data_list = create_data_record_list_mem();
+				data_list->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+				data_list->data_record->key = key;
+				data_list->data_record->len = 12;
+				data_list->data_record->value = create_n_byte_mem(13);
+				(data_list->data_record->value)[12] = '\0';
+				strncpy(data_list->data_record->value, str, 12);
+				data_list->next_data = NULL;
+				cur_data = data_list;
+				is_first = FALSE;
+			}
+			else
+			{
+				new_data = create_data_record_list_mem();
+                                new_data->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+                                new_data->data_record->key = key;
+                                new_data->data_record->len = 12;
+                                new_data->data_record->value = create_n_byte_mem(13);
+                                (new_data->data_record->value)[12] = '\0';
+                                strncpy(new_data->data_record->value, str, 12);
+				new_data->next_data = NULL;
+				cur_data->next_data = new_data;
+				cur_data = cur_data->next_data;
+			}
+			num ++;
+		}
+		else
+		{
+			cout<<"This key already exists, choose another.\n"<<endl;
+		}
+	}
+
+	INDEX_NODE *res;
+	res = batch_insert(root, data_list);
+	if(!res)
+	{
+		cout<<"Batch insert failed!\n"<<endl;
+		free_data_record_list_mem(data_list);
+		data_list = NULL;
+		return(RUN_FAILED);
+	}
+	else
+	{
+		cout<<"Batch insert successed!\n"<<endl;
+		cout<<"Draw the new whole tree:"<<endl;
+		draw_a_tree(res);
+		return(RUN_SUCCESS);
+	}
+}
+
+/*This is used to run batch delete test.*/
+RUN_RESULT
+run_batch_delete_test(INDEX_NODE *root)
+{
+	int low = (int)(ceil(0.7 * KEY_RANGE));
+	int high = (int)(ceil(0.8 * KEY_RANGE));
+
+	cout<<"Batch delete test: "<<endl;
+	cout<<"Delete range: "<<low<<"~"<<high<<endl;
+	if(batch_delete(root, low, high))
+	{
+		cout<<"Batch delete successed! Draw the tree:"<<endl;
+		draw_a_tree(root);
+		return(RUN_SUCCESS);
+	}
+	else
+	{
+		cout<<"Batch delete failed!"<<endl;
+		return(RUN_FAILED);
+	}
+}
+
+
+/*Following are functions for supporting test.*/
+
 /*This is used to produce an available key using random data.*/
 int
 produce_actual_key(INDEX_NODE *root, int num)
@@ -650,4 +754,31 @@ test_level_info(LEVEL_INFO *level_info, ON_OFF on_off)
 		test_node_info(level_info->node_info_addr, ON);
         }
         return;
+}
+
+/*This is used toshow sub tree info link information.*/
+void
+show_sub_tree_info_link(SUB_TREE_INFO_LINK *link, ON_OFF on_off)
+{
+	if(on_off == ON)
+	{
+		SUB_TREE_INFO_LINK *cur_link;
+		cur_link = link;
+		while(cur_link)
+		{
+			if(is_leaf_node(cur_link->sub_root))
+			{
+				LEAF_NODE *leaf;
+				leaf = (LEAF_NODE *)cur_link->sub_root;
+				draw_a_leaf(leaf, -1);
+			}
+			else
+			{
+				draw_a_tree(cur_link->sub_root);
+			}
+			cur_link = cur_link->next_link;
+		}
+	}
+	
+	return;
 }
