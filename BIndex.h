@@ -322,6 +322,7 @@ LEAF_NODE *quick_search_special(INDEX_NODE *, FIRST_OR_LAST);
 void exec_delete_sub_trees(INDEX_NODE *, SUB_TREE_LIST_INFO *);
 NODE_PATH_INFO *fetch_index_path(INDEX_NODE *, INDEX_NODE *);
 DATA_INFO *fetch_leaf_list_data_info(LEAF_NODE *, LEAF_NODE *);
+INDEX_NODE *fetch_first_sub_tree(INDEX_NODE *, int, int);
 
 /*Following for log operations.*/
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);

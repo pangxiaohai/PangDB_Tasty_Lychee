@@ -203,7 +203,8 @@ auto_backup(void)
 
         if(!back_info)
         {
-                cout<<"Cannot find file! Recovery failed!\n"<<endl;
+                cout<<"No backinfo found! Do force backup!\n"<<endl;
+		is_auto_backup = FALSE;
                 return(RUN_FAILED);
         }
 	
@@ -212,6 +213,7 @@ auto_backup(void)
 	if(!write_file)
 	{
 		cout<<"Cannot open file! Auto backup failed.\n"<<endl;
+		is_auto_backup = FALSE;
 		return(RUN_FAILED);
 	}
 
@@ -224,6 +226,7 @@ auto_backup(void)
 	success_num = write_file_according_log(back_info->filename, commit_log);
 	if(success_num == -1)
 	{
+		is_auto_backup = FALSE;
 		return(RUN_FAILED);
 	}
 
