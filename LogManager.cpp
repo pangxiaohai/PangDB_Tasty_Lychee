@@ -5,6 +5,7 @@
 #include<string>
 #include<string.h>
 #include<time.h>
+#include<sys/time.h>
 #include<fstream>
 
 using namespace std;
@@ -14,7 +15,7 @@ using namespace std;
 
 
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
-LOG_INFO *exec_read_log(int);
+LOG_INFO *exec_read_log(uint64_t);
 INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
 LOG_INFO *read_recent_logs(int);
 
@@ -23,8 +24,10 @@ LOG_INFO *read_recent_logs(int);
 RUN_RESULT 
 exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 {
-	int now;
-	now = time((time_t *)NULL);
+	struct timeval now_t;
+	gettimeofday(&now_t, NULL);
+	uint64_t now;
+	now = now_t.tv_sec * 1000 + now_t.tv_usec / 1000;
 	
 	ofstream write_log(LOG_FILE, ios::app);
 	
@@ -35,13 +38,13 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 	}
 	
 	int  value_len, res_len;
-	char log_buf[31];
-	log_buf[30] = '\0';
+	char log_buf[41];
+	log_buf[40] = '\0';
 
 	value_len = data->len;
-	res_len = value_len + 25;
-	sprintf(log_buf,"%10d%3d%6d%1d%10d", now, res_len, user, act, data->key);
-	write_log.write(log_buf, 30);
+	res_len = value_len + 35;
+	sprintf(log_buf,"%20d%3d%6d%1d%10d", now, res_len, user, act, data->key);
+	write_log.write(log_buf, 40);
 	write_log.write(data->value, value_len);
 	write_log.write(LOG_END, 8);
 	write_log.clear();
@@ -51,14 +54,8 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 
 /*This is used to execute read log.*/
 LOG_INFO *
-exec_read_log(int search_time)
+exec_read_log(uint64_t search_time)
 {
-	if(search_time < 0)
-	{
-		cout<<"Wrong input search time!\n"<<endl;
-		return(NULL);
-	}
-
 	LOG_INFO *res;
 	res = create_log_info_mem();
 	LOG_LIST *cur_log, *new_log;
@@ -87,20 +84,20 @@ exec_read_log(int search_time)
 	key_buf[10] = '\0';
 	char end_buf[9];
 	end_buf[8] = '\0';
-	char log_time[11], res_len[4];
-	log_time[10] = '\0';
+	char log_time[21], res_len[4];
+	log_time[20] = '\0';
 	res_len[3] = '\0';
-	while(read_log.read(log_time,10))
+	while(read_log.read(log_time,20))
 	{
 		read_log.read(res_len, 3);
 		
-		int trans_time;
+		uint64_t trans_time;
 		int length;
 		
-		sscanf(log_time, "%10d", &trans_time);
+		sscanf(log_time, "%20d", &trans_time);
 		
 		sscanf(res_len, "%3d", &length);
-		length = length - 25;
+		length = length - 35;
 
 		read_log.read(user_buf, 6);
 		read_log.read(act_buf, 1);
@@ -263,8 +260,8 @@ read_recent_logs(int num)
 	LOG_LIST *first_log;
 	first_log = cur_log;
 
-	char log_time[11];
-	log_time[10] = '\0';
+	char log_time[21];
+	log_time[20] = '\0';
 	char user_buf[7];
 	user_buf[6] = '\0';
         char act_buf[2];
@@ -276,12 +273,13 @@ read_recent_logs(int num)
         char res_len[4];
 	res_len[3] = '\0';
 
-	int begin_time, act, len, key;
+	int act, len, key;
+	uint64_t begin_time;
 	PID user;
 
-	while(read_log.read(log_time,10))
+	while(read_log.read(log_time,20))
 	{
-		sscanf(log_time, "%10d", &begin_time);
+		sscanf(log_time, "%20d", &begin_time);
 		
 		read_log.read(res_len, 3);
 		sscanf(res_len, "%3d", &len);		
@@ -295,7 +293,7 @@ read_recent_logs(int num)
 		read_log.read(key_buf, 10);
 		sscanf(key_buf, "%10d", &key);
 		
-		len = len - 25;
+		len = len - 35;
 		char *value = create_n_byte_mem(len + 1);
 		value[len] = '\0';
 		read_log.read(value, len);

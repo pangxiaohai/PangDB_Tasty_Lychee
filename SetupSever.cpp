@@ -319,7 +319,7 @@ run_insert_data_operation(INDEX_NODE *root)
 	cin>>value_buf;
 	int len;
 	len = value_buf.length();
-	if(len>974)
+	if(len>964)
 	{
 		cout<<"Value is too long!\n"<<endl;
 	}

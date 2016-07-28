@@ -5,6 +5,7 @@
 #include<string>
 #include<string.h>
 #include<time.h>
+#include<sys/time.h>
 #include<fstream>
 
 using namespace std;
@@ -81,10 +82,12 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 	}
 	*/
 
-	int begin_time;
+	uint64_t begin_time;
 	int value_len;
 
-	begin_time = time((time_t *)NULL);
+	struct timeval now;
+	gettimeofday(&now, NULL);
+	begin_time = now.tv_sec * 1000 + now.tv_usec/1000;
 	//free_read_lock(node_path);
 	cur_leaf = node_path->end_leaf;
 	while(cur_leaf)
@@ -102,9 +105,10 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 		cur_leaf = cur_leaf->back_node;
 	}
 
-	char back_time[10];
-	sprintf(back_time, "%10d", begin_time);
-	back_log.write(back_time, 10);
+	char back_time[21];
+	back_time[20] = '\0';
+	sprintf(back_time, "%20d", begin_time);
+	back_log.write(back_time, 20);
 	back_log.write(file_name, 12);
 	back_log.write(BACK_END, 8);
 
@@ -113,8 +117,8 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 	ofstream last_log(LAST_LOG, ios::trunc);
 	if(last_log)
 	{
-		sprintf(back_time, "%10d", begin_time);
-		last_log.write(back_time, 10);
+		sprintf(back_time, "%20d", begin_time);
+		last_log.write(back_time, 20);
         	last_log.write(file_name, 12);
         	last_log.write(BACK_END, 8);
 		last_log.clear();
@@ -164,7 +168,7 @@ data_recovery(void)
 
 	/*Get logs after backup begin time and re-do the modifications.*/
 	LOG_INFO *redo_log;
-	redo_log = exec_read_log(back_info->begin_time + 1);
+	redo_log = exec_read_log(back_info->begin_time);
 	
 	free(back_info);
 	back_info = NULL;
@@ -197,7 +201,7 @@ auto_backup(void)
 	is_auto_backup = TRUE;
 
 	BACK_INFO *back_info;
-	int exec_time;
+	uint64_t exec_time;
 
         back_info = search_backup_info();
 
@@ -219,8 +223,10 @@ auto_backup(void)
 
 	LOG_INFO *commit_log;
         commit_log = exec_read_log(back_info->begin_time);
+	struct timeval now;	
+	gettimeofday(&now, NULL);
 	
-	exec_time = time((time_t *)NULL);
+	exec_time = now.tv_sec * 1000 + now.tv_usec / 1000;;
 
 	int success_num;
 	success_num = write_file_according_log(back_info->filename, commit_log);
@@ -230,12 +236,13 @@ auto_backup(void)
 		return(RUN_FAILED);
 	}
 
-	char back_time[10];
+	char back_time[21];
+	back_time[20] = '\0';
 	ofstream last_log(LAST_LOG, ios::trunc);
         if(last_log)
         {
-                sprintf(back_time, "%10d", exec_time);
-		last_log.write(back_time, 10);
+                sprintf(back_time, "%20d", exec_time);
+		last_log.write(back_time, 20);
 		last_log.write(back_info->filename, 12);
 		last_log.write(BACK_END, 8);
 		last_log.clear();
@@ -246,8 +253,8 @@ auto_backup(void)
 
 	if(back_log)
         {
-                sprintf(back_time, "%10d", exec_time);
-		back_log.write(back_time, 10);
+                sprintf(back_time, "%20d", exec_time);
+		back_log.write(back_time, 20);
 		back_log.write(back_info->filename, 12);
 		back_log.write(BACK_END, 8);
 		back_log.clear();
@@ -336,9 +343,9 @@ write_file_according_log(char *filename, LOG_INFO *log_info)
 BACK_INFO *
 search_backup_info(void)
 {
-        char end_mark[9], begin_time[11];
+        char end_mark[9], begin_time[21];
 	end_mark[8] = '\0';
-	begin_time[10] = '\0';
+	begin_time[20] = '\0';
         int found_file = 0;
         BACK_INFO *back_info;
 
@@ -349,11 +356,11 @@ search_backup_info(void)
         ifstream read_last(LAST_LOG);
         if(read_last)
         {
-                read_last.read(begin_time, 10);
+                read_last.read(begin_time, 20);
                 read_last.read(back_info->filename, 12);
                 read_last.read(end_mark, 8);
-		int back_time;
-		sscanf(begin_time, "%10d", &back_time);
+		uint64_t back_time;
+		sscanf(begin_time, "%20d", &back_time);
                 back_info->begin_time = back_time;
                 found_file = 1;
 		read_last.clear();
@@ -393,12 +400,15 @@ search_backup_file(void)
 	BACK_INFO *res;
 	res = (BACK_INFO *)malloc(sizeof(BACK_INFO));
 
-	char name_buf[12], end_mark[8], begin_time[10];
+	char name_buf[13], end_mark[9], begin_time[21];
+	begin_time[20] = '\0';
+	name_buf[12] = '\0';
+	end_mark[8] = '\0';
 	int is_avaliable = 0;
 
 	while(!back_log.eof())
 	{
-		back_log.read(begin_time, 10);
+		back_log.read(begin_time, 20);
                 back_log.read(name_buf, 12);
                 back_log.read(end_mark, 8);
 		
@@ -406,8 +416,8 @@ search_backup_file(void)
 			((!strcmp(name_buf, BACK_FILE1)) 
 				|| (!strcmp(name_buf, BACK_FILE1))))
 		{
-			int back_time;
-			sscanf(begin_time, "%10d", back_time);
+			uint64_t back_time;
+			sscanf(begin_time, "%20d", back_time);
 			/*This is an available log.*/
 	                res->begin_time = back_time;
 

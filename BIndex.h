@@ -8,13 +8,14 @@ using namespace std;
 #define MAXKEYNUM 4
 #define LEAST_P_NUM (short)(ceil(MAXKEYNUM/2)+1)
 #define ALL_REST_NODES -1
-#define NO_LOCK 0
-#define READ_LOCK 1
-#define WRITE_LOCK 2
+#define NO_LOCK (unsigned char)0
+#define READ_LOCK (unsigned char)1
+#define WRITE_LOCK (unsigned char)2
 #define LEAF_NODE_TYPE (unsigned char)0
 #define INDEX_NODE_TYPE (unsigned char)1
 #define KEY_RANGE 100000
 #define FAKE_PID 100
+#define MAXLOCKTIME (uint64_t)500
 
 
 /*For file operations*/
@@ -39,8 +40,6 @@ enum IDX_BOOL {FALSE = 0, TRUE = 1};
 enum SEARCH_DIR {FORWARD, BACKWARD};
 
 enum ASC_DSC {ASC, DSC};
-
-enum HOLDER_STATUS {NO_RIGHTS, EMPTY, NOT_EMPTY, REMOVE_SUCCESS};
 
 enum ON_OFF {OFF = 0, ON = 1};
 
@@ -147,7 +146,7 @@ typedef struct test_summary{
 
 typedef struct log_list{
 	PID user;
-	int time;
+	uint64_t time;
 	ACTION act;
 	DATA_RECORD *data_record;
 	struct log_list *next_log;
@@ -156,12 +155,12 @@ typedef struct log_list{
 typedef struct log_info{
 	LOG_LIST *log_list;
 	int total_num;
-	int begin_time;
+	uint64_t begin_time;
 	IDX_BOOL log_err;
 } LOG_INFO;
 
 typedef struct back_info{
-	int begin_time;
+	uint64_t begin_time;
 	char *filename;
 } BACK_INFO;
 
@@ -188,6 +187,25 @@ typedef struct sub_tree_list_info{
 	SUB_TREE_INFO_LINK *sub_tree_info_link;
 	DATA_RECORD_LIST *data_list;
 } SUB_TREE_LIST_INFO;
+
+typedef struct user_list{
+	PID user;
+	struct user_list *next_user;
+} USER_LIST;
+
+typedef struct lock_info{
+	INDEX_NODE *node;
+	struct user_list *user_list;
+	struct lock_info *next_info;
+} LOCK_INFO;
+
+typedef struct lock_record{
+	INDEX_NODE *node;
+	PID user;
+	unsigned char lock_type;
+	uint64_t time;
+	struct lock_record *next_record;
+} LOCK_RECORD;
 
 /*Need to consider what info to store here*/
 /*
@@ -239,6 +257,9 @@ SUB_TREE_LIST_INFO *create_sub_tree_list_info_mem(void);
 SUB_TREE_INFO_LINK *create_sub_tree_info_link_mem(void);
 //DEPTH_INFO *create_depth_info_mem(void);
 char *create_n_byte_mem(int);
+USER_LIST *create_user_list_mem(void);
+LOCK_INFO *create_lock_info_mem(void);
+LOCK_RECORD *create_lock_record_mem(void);
 
 /*Following for memory free.*/
 void free_index_node_link_mem(INDEX_NODE_LINK *);
@@ -326,7 +347,7 @@ INDEX_NODE *fetch_first_sub_tree(INDEX_NODE *, int, int);
 
 /*Following for log operations.*/
 RUN_RESULT exec_write_log(PID, ACTION, DATA_RECORD *);
-LOG_INFO *exec_read_log(int);
+LOG_INFO *exec_read_log(uint64_t);
 INDEX_NODE *redo_according_log(INDEX_NODE *, LOG_INFO *);
 LOG_INFO *read_recent_logs(int);
 

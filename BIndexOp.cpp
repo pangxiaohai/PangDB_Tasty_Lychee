@@ -1746,27 +1746,27 @@ exec_delete_sub_trees(INDEX_NODE *root, int low, int high)
 
 		if(is_leaf_node(sub_root))
                 {
-			target_leaf = (LEAF_NODE *)sub_root;
 			begin = sub_root->pri_key + 1;
-			delete_node(root, target_leaf->data_record->key);
                 }
 		else
 		{
-	        	node_path = fetch_index_path(root, sub_root);
-			sub_root_link = node_path->index_node_link;
-
-			while(sub_root_link->next_link)
-        		{
-                		sub_root_link = sub_root_link->next_link;
-        		}
-
 			last = quick_search_special(sub_root, LAST_NODE);
-			begin = last->pri_key + 1;
-			exec_delete_a_sub_tree(root, sub_root_link, sub_root);
-
-			free_node_path_info_mem(node_path);
-			node_path = NULL;
+                        begin = last->pri_key + 1;
 		}
+	       	node_path = fetch_index_path(root, sub_root);
+		sub_root_link = node_path->index_node_link;
+
+		while(sub_root_link->next_link)
+        	{
+                	sub_root_link = sub_root_link->next_link;
+        	}
+
+		/*Delete sub trees would not write logs.
+		But directly do a backup.*/
+		exec_delete_a_sub_tree(root, sub_root_link, sub_root);
+
+		free_node_path_info_mem(node_path);
+		node_path = NULL;
 		
 	}
 	/*Sub trees have been freed when executing delet.*/

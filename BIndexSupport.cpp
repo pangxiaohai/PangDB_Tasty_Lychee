@@ -56,7 +56,9 @@ void free_broken_index_tree(INDEX_NODE *);
 void free_leaf_list_mem(LEAF_NODE *, LEAF_NODE *, SEARCH_DIR);
 void free_a_leaf_mem(LEAF_NODE *);
 void free_a_tree_mem(INDEX_NODE *);
-
+USER_LIST *create_user_list_mem(void);
+LOCK_INFO *create_lock_info_mem(void);
+LOCK_RECORD *create_lock_record_mem(void);
 
 
 /*This is used to determine the node type.*/
@@ -724,4 +726,31 @@ free_a_leaf_mem(LEAF_NODE *leaf)
 	free(leaf);
 	leaf = NULL;
 	return;
+}
+
+/*This is used to create user list memory.*/
+USER_LIST *
+create_user_list_mem(void)
+{
+	USER_LIST *ret;
+	ret = (USER_LIST *)malloc(sizeof(USER_LIST));
+	return(ret);
+}
+
+/*This is used to create lock info memory.*/
+LOCK_INFO *
+create_lock_info_mem(void)
+{
+	LOCK_INFO *ret;
+	ret = (LOCK_INFO *)malloc(sizeof(LOCK_INFO));
+	return(ret);
+}
+
+/*This is used to create lock record memroy.*/
+LOCK_RECORD *
+create_lock_record_mem(void)
+{
+	LOCK_RECORD *ret;
+	ret = (LOCK_RECORD *)malloc(sizeof(LOCK_RECORD));
+	return(ret);
 }

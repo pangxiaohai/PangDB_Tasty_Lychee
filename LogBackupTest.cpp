@@ -70,13 +70,13 @@ run_log_write_read_test(INDEX_NODE *root)
 		return(RUN_FAILED);
 	}
 
-	char first_time[11];
-	first_time[10] = '\0';
-	int start_time;
+	char first_time[21];
+	first_time[20] = '\0';
+	uint64_t start_time;
 	read_log.seekg(0, ios_base::beg);
-	read_log.read(first_time, 10);
+	read_log.read(first_time, 20);
 	
-	sscanf(first_time, "%10d", &start_time);
+	sscanf(first_time, "%20d", &start_time);
 
 	read_log.close();
 	LOG_INFO *all_log;
