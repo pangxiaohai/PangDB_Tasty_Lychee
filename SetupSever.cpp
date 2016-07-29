@@ -4,6 +4,9 @@
 #include<stdlib.h>
 #include<string>
 #include<string.h>
+#include<pthread.h>
+#include <unistd.h>
+#include<sys/types.h>
 
 
 using namespace std;
@@ -29,6 +32,11 @@ void run_show_data_draw_tree_operation(INDEX_NODE *);
 void run_show_logs(INDEX_NODE *);
 INDEX_NODE *run_diagnose_and_repair(INDEX_NODE *);
 
+pthread_t backup_thread;
+pthread_t lock_clean_thread;
+
+PID lock_manager;
+
 
 int main(void)
 {
@@ -43,6 +51,8 @@ int main(void)
 	{
 		cout<<"Create system files successed!\n"<<endl;
 	}
+
+	//lock_manager = createProcess();
 
 	setup_consol();
 	return 0;
@@ -73,6 +83,8 @@ setup_consol(void)
 				if(!db_set)
 				{
 					test_root = test_init();
+					pthread_create(&backup_thread,NULL, setup_auto_backup, NULL);
+					pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
 					db_set = 1;
 					in_test = 1;
 					run_exist(test_root);
@@ -91,6 +103,8 @@ setup_consol(void)
 				else
 				{
 					test_root = test_init();
+					pthread_create(&backup_thread,NULL, setup_auto_backup, NULL);
+					pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
 					db_set = 1;
 					in_test = 1;
 					operate_exist(test_root);

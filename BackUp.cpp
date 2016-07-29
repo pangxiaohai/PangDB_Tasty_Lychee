@@ -7,6 +7,8 @@
 #include<time.h>
 #include<sys/time.h>
 #include<fstream>
+#include <unistd.h>
+
 
 using namespace std;
 
@@ -25,6 +27,7 @@ DATA_INFO *exec_read_data(char *);
 BACK_INFO *search_backup_file(void);
 int write_file_according_log(char *, LOG_INFO *);
 RUN_RESULT auto_backup(void);
+void *setup_auto_backup(void *);
 
 
 /*This is used to write all data to disk file.*/
@@ -107,7 +110,7 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 
 	char back_time[21];
 	back_time[20] = '\0';
-	sprintf(back_time, "%20d", begin_time);
+	sprintf(back_time, "%20ld", begin_time);
 	back_log.write(back_time, 20);
 	back_log.write(file_name, 12);
 	back_log.write(BACK_END, 8);
@@ -117,7 +120,7 @@ exec_write_all_data(INDEX_NODE *root, char *file_name)
 	ofstream last_log(LAST_LOG, ios::trunc);
 	if(last_log)
 	{
-		sprintf(back_time, "%20d", begin_time);
+		sprintf(back_time, "%20ld", begin_time);
 		last_log.write(back_time, 20);
         	last_log.write(file_name, 12);
         	last_log.write(BACK_END, 8);
@@ -188,6 +191,18 @@ data_recovery(void)
 	return(ret_root);
 }
 
+/*This is used to setup auto backup.*/
+void *
+setup_auto_backup(void *arg)
+{
+	while(1)
+	{
+		sleep(5);
+		auto_backup();
+	}
+}
+
+
 /*This is used to soft backup*/
 /*In this mod, no data need to be lock.*/
 RUN_RESULT
@@ -223,6 +238,11 @@ auto_backup(void)
 
 	LOG_INFO *commit_log;
         commit_log = exec_read_log(back_info->begin_time);
+	if(!commit_log)
+	{
+		return(RUN_SUCCESS);
+	}
+
 	struct timeval now;	
 	gettimeofday(&now, NULL);
 	
@@ -241,7 +261,7 @@ auto_backup(void)
 	ofstream last_log(LAST_LOG, ios::trunc);
         if(last_log)
         {
-                sprintf(back_time, "%20d", exec_time);
+                sprintf(back_time, "%20ld", exec_time);
 		last_log.write(back_time, 20);
 		last_log.write(back_info->filename, 12);
 		last_log.write(BACK_END, 8);
@@ -253,7 +273,7 @@ auto_backup(void)
 
 	if(back_log)
         {
-                sprintf(back_time, "%20d", exec_time);
+                sprintf(back_time, "%20ld", exec_time);
 		back_log.write(back_time, 20);
 		back_log.write(back_info->filename, 12);
 		back_log.write(BACK_END, 8);
@@ -276,13 +296,13 @@ write_file_according_log(char *filename, LOG_INFO *log_info)
 {
 	if(log_info->log_err)
 	{
-		cout<<"Log error!\n"<<endl;
+		//cout<<"Log error!\n"<<endl;
 		return(-1);
 	}
 
 	if(!log_info->total_num)
 	{
-		cout<<"No log record found!\n"<<endl;
+		//cout<<"No log record found!\n"<<endl;
 		return(0);
 	}
 
@@ -330,11 +350,11 @@ write_file_according_log(char *filename, LOG_INFO *log_info)
 			ignore ++;
 		}
 		
-		
+		/*
 		cout<<"Total "<<(success + failed + ignore)<<" logs found. "
 			<<success<<" successed. "<<failed<<" failed. "<<
 			ignore<<" ignored.\n"<<endl;
-	
+		*/
 		return(success);	
 	}
 }
@@ -360,7 +380,7 @@ search_backup_info(void)
                 read_last.read(back_info->filename, 12);
                 read_last.read(end_mark, 8);
 		uint64_t back_time;
-		sscanf(begin_time, "%20d", &back_time);
+		sscanf(begin_time, "%ld", &back_time);
                 back_info->begin_time = back_time;
                 found_file = 1;
 		read_last.clear();
@@ -417,7 +437,7 @@ search_backup_file(void)
 				|| (!strcmp(name_buf, BACK_FILE1))))
 		{
 			uint64_t back_time;
-			sscanf(begin_time, "%20d", back_time);
+			sscanf(begin_time, "%ld", &back_time);
 			/*This is an available log.*/
 	                res->begin_time = back_time;
 

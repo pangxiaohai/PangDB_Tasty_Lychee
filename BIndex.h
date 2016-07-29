@@ -1,5 +1,6 @@
 #include <string>
 #include <math.h>
+#include <sys/types.h>
 
 using namespace std;
 
@@ -51,7 +52,7 @@ enum ACTION {READ = 0, INSERT = 1, UPDATE = 2 , DELETE = 3, UNDEFINED = -1};
 
 enum SORT_STAT {UNSORT = 0, SORT = 1};
 
-typedef int PID;
+typedef pid_t PID;
 
 typedef struct data_record
 {
@@ -359,6 +360,8 @@ DATA_INFO *exec_read_data(char *);
 BACK_INFO *search_backup_file(void);
 int write_file_according_log(char *, LOG_INFO *);
 RUN_RESULT auto_backup(void);
+void *setup_auto_backup(void *);
+
 
 /*Following for log and backup test.*/
 RUN_RESULT run_backup_write_read_test(INDEX_NODE *);
@@ -371,6 +374,13 @@ RUN_RESULT check_and_repair_leaf_link(INDEX_NODE *);
 INDEX_NODE *re_generate_index_tree(INDEX_NODE *, LEAF_NODE *, LEAF_NODE *);
 INDEX_NODE *repair_and_rebuild_index_tree(INDEX_NODE *);
 
+/*Following for lock support.*/
+void *auto_clean_lock(void *);
+
+/*Following for process mamnager.*/
+PID createProcess(void);
+
 
 /*Global Varibles*/
-extern INDEX_NODE *test_root;
+//extern INDEX_NODE *test_root;
+//extern PID lock_manager;

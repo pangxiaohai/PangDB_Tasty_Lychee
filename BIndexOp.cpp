@@ -1485,7 +1485,9 @@ insert_to_file(char *filename, DATA_RECORD *data_record)
 		return(RUN_FAILED);
 	}
 
-	char key_buf[10], len_buf[3];
+	char key_buf[11], len_buf[4];
+	key_buf[10] = '\0';
+	len_buf[3] = '\0';
 	int value_len;
 
 	sprintf(key_buf, "%10d", data_record->key);
@@ -1533,17 +1535,23 @@ delete_from_file(char *filename, DATA_RECORD *data_record)
 RUN_RESULT
 update_to_file(char *filename, DATA_RECORD *data_record)
 {
-	fstream file(filename);
-        if(!file)
+	fstream wfile(filename);
+        if(!wfile)
         {
                 cout<<"Cannot open backup file!\n"<<endl;
                 return(RUN_FAILED);
         }
 	
-	if(exec_delete_from_file(data_record, file))
+	if(exec_delete_from_file(data_record, wfile))
 	{
-		file.seekg(0,ios::end);
-		char len_buf[3], key_buf[10];
+		wfile.clear();
+		wfile.close();
+		
+		ofstream file(filename, ios::app);
+		char len_buf[4], key_buf[11];
+		len_buf[3] = '\0';
+		key_buf[10] = '\0';
+
         	int value_len;
 
 	        sprintf(key_buf, "%10d", data_record->key);
@@ -1562,6 +1570,8 @@ update_to_file(char *filename, DATA_RECORD *data_record)
 	}
 	else
 	{
+		wfile.clear();
+                wfile.close();
 		return(RUN_FAILED);
 	}
 }
@@ -1570,20 +1580,24 @@ update_to_file(char *filename, DATA_RECORD *data_record)
 RUN_RESULT
 exec_delete_from_file(DATA_RECORD *data_record, fstream &file)
 {
-        char value_len[3], key_buf[10], end_buf[8];
+        char value_len[4], key_buf[11], end_buf[9];
+	value_len[3] = '\0';
+	key_buf[10] = '\0';
+	end_buf[8] = '\0';
         int key, delete_done = 0, len;
 
-        while(!file.eof())
+        while(file.read(key_buf, 10))
         {
 		char *value_buf;
-                file.read(key_buf, 10);
                 file.read(value_len, 3);
-                sscanf(value_len, "%d", len);
-		value_buf = create_n_byte_mem(len);
+                sscanf(value_len, "%3d", &len);
+		value_buf = create_n_byte_mem(len+1);
+		value_buf[len] = '\0';
                 file.read(value_buf, len);
-                file.read(end_buf, 8);
 
-                sscanf(key_buf, "%d", key);
+                file.read(end_buf, 8);
+		
+                sscanf(key_buf, "%d", &key);
                 if((key == data_record->key)
                         && (strcmp(end_buf, INVALID)))
                 {

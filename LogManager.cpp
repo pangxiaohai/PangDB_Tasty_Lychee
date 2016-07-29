@@ -43,7 +43,7 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 
 	value_len = data->len;
 	res_len = value_len + 35;
-	sprintf(log_buf,"%20d%3d%6d%1d%10d", now, res_len, user, act, data->key);
+	sprintf(log_buf,"%20ld%3d%6d%1d%10d", now, res_len, user, act, data->key);
 	write_log.write(log_buf, 40);
 	write_log.write(data->value, value_len);
 	write_log.write(LOG_END, 8);
@@ -56,7 +56,7 @@ exec_write_log(PID user, ACTION act, DATA_RECORD *data)
 LOG_INFO *
 exec_read_log(uint64_t search_time)
 {
-	LOG_INFO *res;
+	LOG_INFO *res = NULL;
 	res = create_log_info_mem();
 	LOG_LIST *cur_log, *new_log;
 	cur_log = NULL;
@@ -94,7 +94,7 @@ exec_read_log(uint64_t search_time)
 		uint64_t trans_time;
 		int length;
 		
-		sscanf(log_time, "%20d", &trans_time);
+		sscanf(log_time, "%ld", &trans_time);
 		
 		sscanf(res_len, "%3d", &length);
 		length = length - 35;
@@ -133,7 +133,8 @@ exec_read_log(uint64_t search_time)
 			DATA_RECORD *new_record;
 			new_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
 			sscanf(key_buf, "%10d", &(new_record->key));
-		
+			
+			new_record->len = length;	
 			new_record->value = create_n_byte_mem(length+1);
 			strncpy(new_record->value, value_buf,length+1);
 			new_log->data_record = new_record;
@@ -279,7 +280,7 @@ read_recent_logs(int num)
 
 	while(read_log.read(log_time,20))
 	{
-		sscanf(log_time, "%20d", &begin_time);
+		sscanf(log_time, "%ld", &begin_time);
 		
 		read_log.read(res_len, 3);
 		sscanf(res_len, "%3d", &len);		
@@ -375,6 +376,7 @@ read_recent_logs(int num)
 						replace_log->data_record->key = key;
 						replace_log->data_record->value = create_n_byte_mem(len+1);
 						strncpy(replace_log->data_record->value, value, len+1);
+						replace_log->time = begin_time;						
 
 						cur_log = cur_log->next_log;
 					}

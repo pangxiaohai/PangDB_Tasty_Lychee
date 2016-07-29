@@ -48,8 +48,8 @@ run_backup_write_read_test(INDEX_NODE *root)
 		cout<<"Read backup file successed!\n"<<endl;
 		cout<<"Total records: "<<res->num<<" Max key: "<<res->max_key
 			<<" Min key: "<<res->min_key<<" \n"<<endl;
-		cout<<"Following are all the data records: "<<endl;
-		test_list(res->data_list, res->num, ON);
+		//cout<<"Following are all the data records: "<<endl;
+		test_list(res->data_list, res->num, OFF);
 		free_data_info_mem(res);
 		res = NULL;
 	}
@@ -70,14 +70,44 @@ run_log_write_read_test(INDEX_NODE *root)
 		return(RUN_FAILED);
 	}
 
-	char first_time[21];
-	first_time[20] = '\0';
+	char user_buf[7];
+        user_buf[6] = '\0';
+        char act_buf[2];
+        act_buf[1] = '\0';
+        char key_buf[11];
+        key_buf[10] = '\0';
+        char end_buf[9];
+        end_buf[8] = '\0';
+        char log_time[21], res_len[4];
+        log_time[20] = '\0';
+        res_len[3] = '\0';
 	uint64_t start_time;
-	read_log.seekg(0, ios_base::beg);
-	read_log.read(first_time, 20);
-	
-	sscanf(first_time, "%20d", &start_time);
+        while(read_log.read(log_time,20))
+        {
+		sscanf(log_time, "%ld", &start_time);
+                read_log.read(res_len, 3);
 
+                int length;
+                
+		sscanf(res_len, "%3d", &length);
+                length = length - 35;
+
+                read_log.read(user_buf, 6);
+                read_log.read(act_buf, 1);
+                read_log.read(key_buf, 10);
+
+                char *value_buf = create_n_byte_mem(length+1);
+                value_buf[length] = '\0';
+                read_log.read(value_buf, length);
+                read_log.read(end_buf, 8);
+
+                if(!strcmp(end_buf, LOG_END))
+                {
+			break;
+		}
+	}
+
+	read_log.clear();
 	read_log.close();
 	LOG_INFO *all_log;
 	all_log = exec_read_log(start_time);

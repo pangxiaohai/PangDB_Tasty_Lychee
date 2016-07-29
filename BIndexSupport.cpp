@@ -4,6 +4,7 @@
 #include<stdlib.h>
 #include<string>
 #include<string.h>
+#include<fstream>
 
 
 using namespace std;
@@ -593,9 +594,8 @@ free_depth_info_mem(DEPTH_INFO *depth)
 RUN_RESULT
 create_sys_files(void)
 {
-	FILE *fp1, *fp2, *fp3, *fp4, *fp5;
+	ifstream fp1(LOG_FILE);
 
-	fp1 = fopen(LOG_FILE, "w");
 	if(!fp1)
 	{
 		cout<<"Create log file failed!\n"<<endl;
@@ -605,10 +605,11 @@ create_sys_files(void)
 	{
 		cout<<"Create log file successed!\n"<<endl;
 	}
-	fclose(fp1);	
+	fp1.clear();
+	fp1.close();
 
-	fp2 = fopen(BACK_FILE1, "w");
-        fp3 = fopen(BACK_FILE2, "w");
+	ifstream fp2(BACK_FILE1);
+	ifstream fp3(BACK_FILE2);
 	if((!fp2) || (!fp3))
         {
                 cout<<"Create backup file failed!\n"<<endl;
@@ -618,10 +619,13 @@ create_sys_files(void)
         {
                 cout<<"Create backup file successed!\n"<<endl;
         }
-	fclose(fp2);
-	fclose(fp3);
 
-	fp4 = fopen(BACK_LOG, "w");
+	fp2.clear();
+	fp2.close();
+	fp3.clear();
+	fp3.close();
+
+	ifstream fp4(BACK_LOG);
 	if(!fp4)
         {
                 cout<<"Create backup log file failed!\n"<<endl;
@@ -631,9 +635,10 @@ create_sys_files(void)
         {
                 cout<<"Create backup log file successed!\n"<<endl;
         }
-	fclose(fp4);
+	fp4.clear();
+	fp4.close();
 
-	fp5 = fopen(LAST_LOG, "w");
+	ifstream fp5(LAST_LOG);
 	if(!fp5)
         {
                 cout<<"Create last backup log file failed!\n"<<endl;
@@ -643,7 +648,8 @@ create_sys_files(void)
         {
                 cout<<"Create last backup log file successed!\n"<<endl;
         }
-	fclose(fp5);
+	fp5.clear();
+	fp5.close();
 
 	return(RUN_SUCCESS);
 }

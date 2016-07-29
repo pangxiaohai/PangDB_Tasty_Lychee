@@ -24,7 +24,7 @@ void free_read_node_link_lock(PID, INDEX_NODE_LINK *);
 void remove_lock_record(PID, INDEX_NODE *, unsigned char);
 IDX_BOOL can_apply_write_lock(PID, INDEX_NODE *);
 RUN_RESULT apply_write_links_lock(PID, NODE_ANALYZE_RES *);
-
+void *auto_clean_lock(void *);
 
 
 /*This is used to apply read locks for a node.*/
@@ -161,6 +161,18 @@ add_lock_record(PID user, INDEX_NODE *node, unsigned char lock_type)
 	cur_record->next_record = new_record;
 	return;
 }
+
+/*This is used to run auto clean lock.*/
+void *
+auto_clean_lock(void *)
+{
+	while(1)
+	{
+		sleep(1);
+		clean_overtime_lock();
+	}
+}
+
 
 /*This is used to auto clean overtime locks.*/
 void
