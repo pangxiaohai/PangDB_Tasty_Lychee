@@ -16,7 +16,7 @@ LOCK_RECORD *lock_record = NULL;
 /*This file is used for lock manager.*/
 
 
-RUN_RESULT apply_read_node_link_lock(PID, INDEX_NODE_LINK *);
+RUN_RESULT apply_read_node_lock(PID, INDEX_NODE *);
 void add_lock_record(PID, INDEX_NODE *, unsigned char);
 void clean_overtime_lock(void);
 void remove_lock_info(PID, INDEX_NODE *);
@@ -25,6 +25,9 @@ void remove_lock_record(PID, INDEX_NODE *, unsigned char);
 IDX_BOOL can_apply_write_lock(PID, INDEX_NODE *);
 RUN_RESULT apply_write_links_lock(PID, NODE_ANALYZE_RES *);
 void *auto_clean_lock(void *);
+void show_all_lock_record(void);
+char *get_lock_type(unsigned char);
+void show_all_lock_info(void);
 
 
 /*This is used to apply read locks for a node.*/
@@ -47,6 +50,7 @@ apply_read_node_lock(PID user, INDEX_NODE *node)
 		lock_info->next_info = NULL;
 
 		add_lock_record(user, node, READ_LOCK);
+		return(RUN_SUCCESS);
 	}
 
 	LOCK_INFO *cur_info = lock_info, *new_info;
@@ -234,54 +238,43 @@ remove_lock_info(PID user, INDEX_NODE *node)
 	cur = lock_info;
 	last = lock_info;
 
-	/*Only one node locked.*/
-	if(!cur->next_info)
+	/*If it is the first node*/
+	if(cur->node == node)
 	{
-		/*Node found*/
-		if(cur->node == node)
+		cur_user = cur->user_list;
+		if(cur_user->user == user)
 		{
-			cur_user = cur->user_list;
-			/*Only one user*/
-			if(!cur_user->next_user)
+			cur->user_list = cur_user->next_user;
+			free(cur_user);
+			cur_user = NULL;
+			if(!cur->user_list)
 			{
-				if(cur_user->user == user)
+				if(node->node_lock != WRITE_LOCK)
 				{
-					free(cur_user);
-					if(node->node_lock != WRITE_LOCK)
-					{
-						node->node_lock = NO_LOCK;
-					}
-					free(cur);
-					cur_user = NULL;
-					cur = NULL;
-					lock_info = NULL;
-					return;
+					node->node_lock = NO_LOCK;
 				}
-				else
-				{
-					return;
-				}
+				lock_info = cur->next_info;
+				free(cur);
+				cur = NULL;
 			}
-			else
-			{
-				last_user = cur_user;
-				cur_user = cur_user->next_user;
-				while(cur_user)
-				{
-					if(cur_user->user == user)
-					{
-						last_user->next_user = cur_user->next_user;
-						free(cur_user);
-						cur_user = NULL;
-						return;
-					}
-					last_user = cur_user;
-                                	cur_user = cur_user->next_user;
-				}
-			}
+			return;
 		}
 		else
 		{
+			last_user = cur_user;
+			cur_user = cur_user->next_user;
+			while(cur_user)
+			{
+				if(cur_user->user == user)
+				{
+					last_user->next_user = cur_user->next_user;
+					free(cur_user);
+					cur_user = NULL;
+					return;
+				}
+				last_user = cur_user;
+                               	cur_user = cur_user->next_user;
+			}
 			return;
 		}
 	}
@@ -485,4 +478,73 @@ can_apply_write_lock(PID user, INDEX_NODE *node)
 	}
 
 	return(FALSE);
+}
+
+/*This is used to show all the lock record.*/
+void
+show_all_lock_record(void)
+{
+	if(!lock_record)
+	{
+		cout<<"No lock record now!"<<endl;
+		return;
+	}
+
+	LOCK_RECORD *cur;
+	cur = lock_record;
+
+	while(cur)
+	{
+		cout<<"Node addr: "<<cur->node<<" Pri_key: "<<cur->node->pri_key
+			<<" User: "<<cur->user<<" Time: "<<cur->time<<" Lock type: "
+			<<get_lock_type(cur->lock_type)<<endl;
+		cur = cur->next_record;
+	}
+	return;
+}
+
+/*This is used for lock test.*/
+char *
+get_lock_type(unsigned char type)
+{
+	switch(type)
+	{
+		case 0:
+			return("NO_LOCK");
+		case 1:
+			return("READ_LOCK");
+		case 2:
+			return("WRITE_LOCK");
+		default:
+			return("ERROR");
+	}
+			
+}
+
+/*This is used to show all the lock info.*/
+void
+show_all_lock_info(void)
+{
+	if(!lock_info)
+	{
+		cout<<"No lock info now!"<<endl;
+	}
+
+	LOCK_INFO *cur;
+	cur = lock_info;
+	USER_LIST *cur_user;
+	while(cur)
+	{
+		cur_user = cur->user_list;
+		cout<<"Node addr: "<<cur->node<<" Pri_key: "<<cur->node->pri_key<<endl;
+		cout<<" User List: ";
+		while(cur_user)
+		{
+			cout<<" "<<cur_user->user<<" ";
+			cur_user = cur_user->next_user;
+		}
+		cout<<endl;
+		cur = cur->next_info;
+	}
+	return;
 }

@@ -7,7 +7,7 @@
 
 using namespace std;
 
-#define TOTAL_CASE 31
+#define TOTAL_CASE 33
 #define TESTDATANUM 100
 
 
@@ -189,6 +189,24 @@ run_all_tests(INDEX_NODE *root)
 
 	if(run_batch_delete_test(root))
         {
+                result.success_num += 1;
+        }
+        else
+        {
+                result.fail_num += 1;
+        }
+
+	if(run_auto_clean_lock_test(root))
+	{
+                result.success_num += 1;
+        }
+        else
+        {
+                result.fail_num += 1;
+        }
+	
+	if(run_lock_block_test(root))
+	{
                 result.success_num += 1;
         }
         else

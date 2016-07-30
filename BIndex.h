@@ -16,7 +16,7 @@ using namespace std;
 #define INDEX_NODE_TYPE (unsigned char)1
 #define KEY_RANGE 100000
 #define FAKE_PID 100
-#define MAXLOCKTIME (uint64_t)500
+#define MAXLOCKTIME (uint64_t)1000
 
 
 /*For file operations*/
@@ -369,6 +369,10 @@ RUN_RESULT run_log_write_read_test(INDEX_NODE *);
 RUN_RESULT run_read_recent_log_test(INDEX_NODE *);
 void print_log_details(LOG_INFO *);
 
+/*Following for lock test.*/
+RUN_RESULT run_auto_clean_lock_test(INDEX_NODE *);
+RUN_RESULT run_lock_block_test(INDEX_NODE *);
+
 /*Following for leaf link and index tree diagnose and repair.*/
 RUN_RESULT check_and_repair_leaf_link(INDEX_NODE *);
 INDEX_NODE *re_generate_index_tree(INDEX_NODE *, LEAF_NODE *, LEAF_NODE *);
@@ -376,6 +380,11 @@ INDEX_NODE *repair_and_rebuild_index_tree(INDEX_NODE *);
 
 /*Following for lock support.*/
 void *auto_clean_lock(void *);
+void show_all_lock_record(void);
+RUN_RESULT apply_read_node_lock(PID, INDEX_NODE *);
+RUN_RESULT apply_write_links_lock(PID, NODE_ANALYZE_RES *);
+char *get_lock_type(unsigned char);
+void show_all_lock_info(void);
 
 /*Following for process mamnager.*/
 PID createProcess(void);
