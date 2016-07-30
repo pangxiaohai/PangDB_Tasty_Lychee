@@ -28,6 +28,9 @@ void *auto_clean_lock(void *);
 void show_all_lock_record(void);
 char *get_lock_type(unsigned char);
 void show_all_lock_info(void);
+void free_write_links_lock(PID, NODE_ANALYZE_RES *);
+void free_read_leaf_link_lock(PID, SINGLE_LEAF_LINK *);
+void free_read_links_lock(PID, NODE_ANALYZE_RES *);
 
 
 /*This is used to apply read locks for a node.*/
@@ -339,6 +342,16 @@ remove_lock_info(PID user, INDEX_NODE *node)
 	return;
 }
 
+/*This is used to free read leaf and index locks.*/
+void
+free_read_links_lock(PID user, NODE_ANALYZE_RES *res)
+{
+	free_read_node_link_lock(user, res->index_link);
+	free_read_leaf_link_lock(user, res->leaf_link);
+	return;
+}
+
+
 /*This is used to free read lock for index node link.*/
 void 
 free_read_node_link_lock(PID user, INDEX_NODE_LINK *index_link)
@@ -348,6 +361,24 @@ free_read_node_link_lock(PID user, INDEX_NODE_LINK *index_link)
 	{
 		remove_lock_info(user, cur_link->index_node);
 		remove_lock_record(user, cur_link->index_node, READ_LOCK);
+		cur_link = cur_link->next_link;
+	}
+
+	return;
+}
+
+/*This is used to free read leaf link lock.*/
+void
+free_read_leaf_link_lock(PID user, SINGLE_LEAF_LINK *leaf_link)
+{
+	SINGLE_LEAF_LINK *cur_leaf = leaf_link;
+	INDEX_NODE *node = NULL;
+	while(cur_leaf)
+	{
+		node = (INDEX_NODE *)cur_leaf->leaf_node;
+		remove_lock_info(user, node);
+                remove_lock_record(user, node, READ_LOCK);
+		cur_leaf = cur_leaf->next_link;
 	}
 
 	return;
@@ -358,25 +389,32 @@ void
 remove_lock_record(PID user, INDEX_NODE *node, unsigned char lock_type)
 {
 	LOCK_RECORD *cur, *last;
+	LEAF_NODE *leaf;
 	if(!lock_record)
 	{
 		return;
 	}
 
-	if(!(lock_record->next_record))
+	cur = lock_record;
+	if((lock_record->user == user) && (lock_record->node == node))
 	{
-		if((lock_record->user == user) && (lock_record->node == node))
+		if((lock_record->lock_type == WRITE_LOCK)
+			 && (lock_type == READ_LOCK))
 		{
-			if((lock_record->lock_type == WRITE_LOCK)
-				 && (lock_type == READ_LOCK))
-			{
-				return;
-			}
-			
-			node->node_lock = NO_LOCK;
-			free(lock_record);
-			lock_record = NULL;
+			return;
 		}
+		if(is_leaf_node(node))
+		{
+			leaf = (LEAF_NODE *)node;
+			leaf->node_lock = NO_LOCK;
+		}
+		else
+		{
+			node->node_lock = NO_LOCK;
+		}
+		lock_record = lock_record->next_record;
+                free(cur);
+                cur = NULL;
 		return;
 	}
 
@@ -395,8 +433,9 @@ remove_lock_record(PID user, INDEX_NODE *node, unsigned char lock_type)
 
                         node->node_lock = NO_LOCK;
 			last->next_record = cur->next_record;
-                        free(lock_record);
-                        lock_record = NULL;
+                        free(cur);
+                        cur = NULL;
+			return;
                 }	
 
 		last = cur;
@@ -546,5 +585,31 @@ show_all_lock_info(void)
 		cout<<endl;
 		cur = cur->next_info;
 	}
+	return;
+}
+
+/*This is used to free write node link lock.*/
+void
+free_write_links_lock(PID user, NODE_ANALYZE_RES *res)
+{
+	SINGLE_LEAF_LINK *cur_leaf;
+	INDEX_NODE_LINK *cur_link;
+
+        cur_leaf = res->leaf_link;
+        cur_link = res->index_link;
+
+	INDEX_NODE *node = NULL;
+        while(cur_leaf)
+        {
+                node = (INDEX_NODE *)(cur_leaf->leaf_node);
+                remove_lock_record(user, node, WRITE_LOCK);
+                cur_leaf = cur_leaf->next_link;
+        }
+
+        while(cur_link)
+        {
+                remove_lock_record(user, cur_link->index_node, WRITE_LOCK);
+                cur_link = cur_link->next_link;
+        }
 	return;
 }

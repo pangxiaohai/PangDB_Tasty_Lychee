@@ -385,6 +385,10 @@ RUN_RESULT apply_read_node_lock(PID, INDEX_NODE *);
 RUN_RESULT apply_write_links_lock(PID, NODE_ANALYZE_RES *);
 char *get_lock_type(unsigned char);
 void show_all_lock_info(void);
+void free_write_links_lock(PID, NODE_ANALYZE_RES *);
+void free_read_node_link_lock(PID, INDEX_NODE_LINK *);
+void free_read_leaf_link_lock(PID, SINGLE_LEAF_LINK *);
+void free_read_links_lock(PID, NODE_ANALYZE_RES *);
 
 /*Following for process mamnager.*/
 PID createProcess(void);

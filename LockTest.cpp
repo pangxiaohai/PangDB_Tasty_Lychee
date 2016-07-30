@@ -133,6 +133,36 @@ run_lock_block_test(INDEX_NODE *root)
 	cout<<"Following are current lock records:"<<endl;
         show_all_lock_record();
 
+	cout<<"Free these write locks.\n"<<endl;
+	free_write_links_lock(101, res);
+
+	cout<<"Following are current lock records:"<<endl;
+        show_all_lock_record(); 
+	/*For Debug.*/
+	//show_all_lock_info();
+	//show_node_lock_status(res);
+
+	cout<<"Then apply some read locks again."<<endl;
+	cur_node = root;
+	pos = 0;
+
+	while(!is_leaf_node(cur_node))
+        {
+                pos = fetch_pos(cur_node, key1);
+                cur_node = cur_node->p_node[pos];
+                apply_read_node_lock(102, cur_node);
+        }	
+
+	cout<<"Following are current lock records:"<<endl;
+        show_all_lock_record();
+	//show_all_lock_info();
+
+	cout<<"Then free these read locks."<<endl;
+	free_read_links_lock(102, res);
+	
+	cout<<"Following are current lock records:"<<endl;
+        show_all_lock_record();
+
 	free_node_analyze_res_mem(res);
 	res = NULL;
 	
