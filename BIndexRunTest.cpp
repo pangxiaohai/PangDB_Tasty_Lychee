@@ -177,7 +177,7 @@ run_all_tests(INDEX_NODE *root)
                 result.fail_num += 1;
         }
 
-	
+
 	if(run_batch_insert_test(root))
 	{
 		result.success_num += 1;

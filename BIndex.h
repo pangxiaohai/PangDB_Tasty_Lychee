@@ -9,9 +9,9 @@ using namespace std;
 #define MAXKEYNUM 4
 #define LEAST_P_NUM (short)(ceil(MAXKEYNUM/2)+1)
 #define ALL_REST_NODES -1
-#define NO_LOCK (unsigned char)0
-#define READ_LOCK (unsigned char)1
-#define WRITE_LOCK (unsigned char)2
+#define NO_LOCK '0'
+#define READ_LOCK '1'
+#define WRITE_LOCK '2'
 #define LEAF_NODE_TYPE (unsigned char)0
 #define INDEX_NODE_TYPE (unsigned char)1
 #define KEY_RANGE 100000
@@ -308,26 +308,26 @@ void show_sub_tree_info_link(SUB_TREE_INFO_LINK *, ON_OFF);
 RUN_RESULT run_batch_delete_test(INDEX_NODE *);
 
 /*Following for supported operations.*/
-NODE_PATH_INFO *scan_node(INDEX_NODE *, int);
-LEAF_NODE *exec_read_value(INDEX_NODE *, int);
-RUN_RESULT update_value(INDEX_NODE *, DATA_RECORD *);
+NODE_PATH_INFO *scan_node(INDEX_NODE *, int, PID);
+LEAF_NODE *exec_read_value(INDEX_NODE *, int, PID);
+RUN_RESULT update_value(INDEX_NODE *, DATA_RECORD *, PID);
 NODE_PATH_INFO *search_special_leaf(INDEX_NODE *, FIRST_OR_LAST);
-SINGLE_LEAF_LINK *exec_top_search(INDEX_NODE *, int, ASC_DSC);
-SINGLE_LEAF_LINK *exec_bottom_search(INDEX_NODE *,int, ASC_DSC);
+SINGLE_LEAF_LINK *exec_top_search(INDEX_NODE *, int, ASC_DSC, PID);
+SINGLE_LEAF_LINK *exec_bottom_search(INDEX_NODE *,int, ASC_DSC, PID);
 LEAF_NODE *search_near_leaf(INDEX_NODE *, int, SUB_UP);
-DOUBLE_LEAF_LINK *generate_double_leaf_link(LEAF_NODE *, LEAF_NODE *);
-DOUBLE_LEAF_LINK *exec_range_search(INDEX_NODE *, int, int);
+DOUBLE_LEAF_LINK *generate_double_leaf_link(LEAF_NODE *, LEAF_NODE *, PID);
+DOUBLE_LEAF_LINK *exec_range_search(INDEX_NODE *, int, int, PID);
 int fetch_pos(INDEX_NODE *, int);
 INDEX_NODE *split_node(INDEX_NODE *, int, int *, INDEX_NODE **);
 NODE_ANALYZE_RES *analyze_influnce_nodes(NODE_PATH_INFO *, ACTION);
-RUN_RESULT delete_node(INDEX_NODE *, int);
-RUN_RESULT insert_node(INDEX_NODE *, DATA_RECORD *);
-RUN_RESULT range_search(INDEX_NODE *, int, int, ASC_DSC);
-RUN_RESULT top_search(INDEX_NODE *, int, ASC_DSC);
-RUN_RESULT bottom_search(INDEX_NODE *, int, ASC_DSC);
+RUN_RESULT delete_node(INDEX_NODE *, int, PID);
+RUN_RESULT insert_node(INDEX_NODE *, DATA_RECORD *, PID);
+RUN_RESULT range_search(INDEX_NODE *, int, int, ASC_DSC, PID);
+RUN_RESULT top_search(INDEX_NODE *, int, ASC_DSC, PID);
+RUN_RESULT bottom_search(INDEX_NODE *, int, ASC_DSC, PID);
 RUN_RESULT delete_whole_tree(INDEX_NODE *);
-RUN_RESULT read_value(INDEX_NODE *, int);
-NODE_ANALYZE_RES *analyze_insert_influnce_nodes(NODE_PATH_INFO *, int);
+RUN_RESULT read_value(INDEX_NODE *, int, PID);
+NODE_ANALYZE_RES *analyze_insert_influnce_nodes(NODE_PATH_INFO *, int, IDX_BOOL);
 IDX_BOOL need_modify_pri(INDEX_NODE *, int);
 RUN_RESULT insert_to_file(char *, DATA_RECORD *);
 RUN_RESULT delete_from_file(char *, DATA_RECORD *);
@@ -335,13 +335,13 @@ RUN_RESULT exec_delete_from_file(fstream, DATA_RECORD *);
 RUN_RESULT update_to_file(char *, DATA_RECORD *);
 void exec_insert_index_node(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *, IDX_BOOL);
 RUN_RESULT insert_sub_tree(INDEX_NODE *, INDEX_NODE *, INDEX_NODE *);
-void exec_delete_a_sub_tree(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *);
-INDEX_NODE *batch_insert(INDEX_NODE *, DATA_RECORD_LIST *);
-INDEX_NODE *batch_delete(INDEX_NODE *, int, int);
+void exec_delete_a_sub_tree(INDEX_NODE *, INDEX_NODE_LINK *, INDEX_NODE *, PID);
+INDEX_NODE *batch_insert(INDEX_NODE *, DATA_RECORD_LIST *, PID);
+INDEX_NODE *batch_delete(INDEX_NODE *, int, int, PID);
 SUB_TREE_LIST_INFO *get_sub_tree_info(INDEX_NODE *, LEAF_NODE *, LEAF_NODE *);
 SUB_TREE_INFO_LINK *analyze_influence_sub_tree(INDEX_NODE *, INDEX_NODE *, int, int);
 LEAF_NODE *quick_search_special(INDEX_NODE *, FIRST_OR_LAST);
-void exec_delete_sub_trees(INDEX_NODE *, SUB_TREE_LIST_INFO *);
+void exec_delete_sub_trees(INDEX_NODE *, SUB_TREE_LIST_INFO *, PID);
 NODE_PATH_INFO *fetch_index_path(INDEX_NODE *, INDEX_NODE *);
 DATA_INFO *fetch_leaf_list_data_info(LEAF_NODE *, LEAF_NODE *);
 INDEX_NODE *fetch_first_sub_tree(INDEX_NODE *, int, int);
@@ -389,11 +389,8 @@ void free_write_links_lock(PID, NODE_ANALYZE_RES *);
 void free_read_node_link_lock(PID, INDEX_NODE_LINK *);
 void free_read_leaf_link_lock(PID, SINGLE_LEAF_LINK *);
 void free_read_links_lock(PID, NODE_ANALYZE_RES *);
-
-/*Following for process mamnager.*/
-PID createProcess(void);
-
-
-/*Global Varibles*/
-//extern INDEX_NODE *test_root;
-//extern PID lock_manager;
+void free_read_node_path_info_lock(PID, NODE_PATH_INFO *);
+void remove_lock_record(PID, INDEX_NODE *, unsigned char);
+void add_lock_record(PID, INDEX_NODE *, unsigned char);
+IDX_BOOL can_apply_write_lock(PID, INDEX_NODE *);
+void free_read_a_leaf_lock(PID, LEAF_NODE *);

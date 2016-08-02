@@ -17,20 +17,22 @@ void initial_display(void);
 void operate_consol_header(void);
 void operate_consol_display(void);
 void operate_exist(INDEX_NODE *);
+void *setup_auto_backup(void *);
 
 /*Declare run operation functions.*/
-void run_read_data_operation(INDEX_NODE *);
-void run_insert_data_operation(INDEX_NODE *);
-void run_delete_data_operation(INDEX_NODE *);
-void run_range_search_operation(INDEX_NODE *);
-void run_update_data_operation(INDEX_NODE *);
-void run_top_search_operation(INDEX_NODE *);
-void run_bottom_search_operation(INDEX_NODE *);
-void run_batch_insert_operation(INDEX_NODE *);
-void run_batch_delete_operation(INDEX_NODE *);
+void run_read_data_operation(INDEX_NODE *, PID);
+void run_insert_data_operation(INDEX_NODE *, PID);
+void run_delete_data_operation(INDEX_NODE *, PID);
+void run_range_search_operation(INDEX_NODE *, PID);
+void run_update_data_operation(INDEX_NODE *, PID);
+void run_top_search_operation(INDEX_NODE *, PID);
+void run_bottom_search_operation(INDEX_NODE *, PID);
+void run_batch_insert_operation(INDEX_NODE *, PID);
+void run_batch_delete_operation(INDEX_NODE *, PID);
 void run_show_data_draw_tree_operation(INDEX_NODE *);
 void run_show_logs(INDEX_NODE *);
 INDEX_NODE *run_diagnose_and_repair(INDEX_NODE *);
+
 
 pthread_t backup_thread;
 pthread_t lock_clean_thread;
@@ -83,7 +85,7 @@ setup_consol(void)
 				if(!db_set)
 				{
 					test_root = test_init();
-					pthread_create(&backup_thread,NULL, setup_auto_backup, NULL);
+					pthread_create(&backup_thread,NULL, setup_auto_backup, (void *)test_root);
 					pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
 					db_set = 1;
 					in_test = 1;
@@ -103,7 +105,7 @@ setup_consol(void)
 				else
 				{
 					test_root = test_init();
-					pthread_create(&backup_thread,NULL, setup_auto_backup, NULL);
+					pthread_create(&backup_thread,NULL, setup_auto_backup, (void *)test_root);
 					pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
 					db_set = 1;
 					in_test = 1;
@@ -166,39 +168,39 @@ operate_exist(INDEX_NODE *root)
 		switch(input)
 		{
 			case 0:
-				run_read_data_operation(root);
+				run_read_data_operation(root, FAKE_PID);
 				operate_consol_display();
 				break;
 			case 1:
-				run_insert_data_operation(root);
+				run_insert_data_operation(root, FAKE_PID);
 				operate_consol_display();
 				break;
 			case 2:
-				run_delete_data_operation(root);
+				run_delete_data_operation(root, FAKE_PID);
 				operate_consol_display();
 				break;
 			case 3:
-                                run_range_search_operation(root);
+                                run_range_search_operation(root, FAKE_PID);
                                 operate_consol_display();
                                 break;
                         case 4:
-                                run_update_data_operation(root);
+                                run_update_data_operation(root, FAKE_PID);
                                 operate_consol_display();
                                 break;
                         case 5:
-                                run_top_search_operation(root);
+                                run_top_search_operation(root, FAKE_PID);
                                 operate_consol_display();
                                 break;
 			case 6:
-                                run_bottom_search_operation(root);
+                                run_bottom_search_operation(root, FAKE_PID);
                                 operate_consol_display();
                                 break;
                         case 7:
-                                run_batch_insert_operation(root);
+                                run_batch_insert_operation(root, FAKE_PID);
                                 operate_consol_display();
                                 break;
                         case 8:
-                                run_batch_delete_operation(root);
+                                run_batch_delete_operation(root, FAKE_PID);
                                 operate_consol_display();
                                 break;
 			case 9:
@@ -266,7 +268,7 @@ operate_consol_display(void)
 
 /*This is used to run read data operation.*/
 void 
-run_read_data_operation(INDEX_NODE *root)
+run_read_data_operation(INDEX_NODE *root, PID user)
 {
 	cout<<"Please input a key: "<<endl;
 	string key_buf;
@@ -294,13 +296,13 @@ run_read_data_operation(INDEX_NODE *root)
         }
 
 	cout<<"Runnig read data operation.\n"<<endl;
-	read_value(root,input_key);
+	read_value(root,input_key, user);
 	return;
 }
 
 /*This is used to run insert data operation.*/
 void 
-run_insert_data_operation(INDEX_NODE *root)
+run_insert_data_operation(INDEX_NODE *root, PID user)
 {
 	cout<<"Please input a key: "<<endl;
 	string key_buf;
@@ -346,7 +348,7 @@ run_insert_data_operation(INDEX_NODE *root)
 	strncpy(data->value, value_buf.c_str(), len);
 	data->len = len;
 
-	if(!insert_node(root, data))
+	if(!insert_node(root, data, user))
 	{
 		cout<<"Insert failed!\n"<<endl;
 		free(data->value);
@@ -364,7 +366,7 @@ run_insert_data_operation(INDEX_NODE *root)
 
 /*This is used to run delete data operation.*/
 void 
-run_delete_data_operation(INDEX_NODE *root)
+run_delete_data_operation(INDEX_NODE *root, PID user)
 {
         cout<<"Please input a key: "<<endl;
 	string key_buf;
@@ -391,7 +393,7 @@ run_delete_data_operation(INDEX_NODE *root)
                 return;
         }
 
-        if(!delete_node(root, input_key))
+        if(!delete_node(root, input_key, user))
         {
                 cout<<"Delete failed!\n"<<endl;
         }
@@ -404,7 +406,7 @@ run_delete_data_operation(INDEX_NODE *root)
 
 /*This is used to run range search operation.*/
 void 
-run_range_search_operation(INDEX_NODE *root)
+run_range_search_operation(INDEX_NODE *root, PID user)
 {
 	int low, high;
 	ASC_DSC order;
@@ -483,7 +485,7 @@ run_range_search_operation(INDEX_NODE *root)
 		return;
 	}
 
-	if(range_search(root, low, high, order))
+	if(range_search(root, low, high, order, user))
 	{
 		cout<<"Range search successed!\n"<<endl;
 		return;
@@ -496,7 +498,7 @@ run_range_search_operation(INDEX_NODE *root)
 
 /*This is used to run update data operation.*/
 void 
-run_update_data_operation(INDEX_NODE *root)
+run_update_data_operation(INDEX_NODE *root, PID user)
 {
         cout<<"Please input a key: "<<endl;
 	string key_buf;
@@ -542,7 +544,7 @@ run_update_data_operation(INDEX_NODE *root)
         strncpy(data->value, value_buf.c_str(), len);
         data->len = len;
 	
-	if(update_value(root, data))
+	if(update_value(root, data, user))
 	{
 		cout<<"Update successed!"<<endl;
 	}
@@ -558,7 +560,7 @@ run_update_data_operation(INDEX_NODE *root)
 
 /*This is used to run top search operation.*/
 void 
-run_top_search_operation(INDEX_NODE *root)
+run_top_search_operation(INDEX_NODE *root, PID user)
 {
 	string num_buf, asc_dsc;
         cout<<"Please input a number to spicify how many records to fetch: "<<endl;
@@ -590,7 +592,7 @@ run_top_search_operation(INDEX_NODE *root)
                 return;
         }
 
-	if(top_search(root, num, order))
+	if(top_search(root, num, order, user))
 	{
 		cout<<"Search successed!\n"<<endl;
 	}
@@ -604,7 +606,7 @@ run_top_search_operation(INDEX_NODE *root)
 
 /*This is used to run bottom search operation.*/
 void 
-run_bottom_search_operation(INDEX_NODE *root)
+run_bottom_search_operation(INDEX_NODE *root, PID user)
 {
         string num_buf, asc_dsc;
         cout<<"Please input a number to spicify how many records to fetch: "<<endl;
@@ -636,7 +638,7 @@ run_bottom_search_operation(INDEX_NODE *root)
                 return;
         }
 
-        if(bottom_search(root, num, order))
+        if(bottom_search(root, num, order, user))
         {
                 cout<<"Search successed!\n"<<endl;
         }
@@ -650,7 +652,7 @@ run_bottom_search_operation(INDEX_NODE *root)
 
 /*This is used to run batch insert operation.*/
 void 
-run_batch_insert_operation(INDEX_NODE *root)
+run_batch_insert_operation(INDEX_NODE *root, PID user)
 {
 	string num_buf;
 	cout<<"Please input how many data to insert:"<<endl;
@@ -742,7 +744,7 @@ run_batch_insert_operation(INDEX_NODE *root)
 		i++;
 	}
 
-	if(batch_insert(root, data_list))
+	if(batch_insert(root, data_list, user))
 	{
 		cout<<"Batch insert successed!"<<endl;
 	}
@@ -757,7 +759,7 @@ run_batch_insert_operation(INDEX_NODE *root)
 
 /*This is used to run batch delete operation.*/
 void 
-run_batch_delete_operation(INDEX_NODE *root)
+run_batch_delete_operation(INDEX_NODE *root, PID user)
 {
 	cout<<"Please input the low bound of delete range:"<<endl;
 	string low_buf;
@@ -821,7 +823,7 @@ run_batch_delete_operation(INDEX_NODE *root)
 	
 	cout<<"Do the batch delete!"<<endl;
 	cout<<"Delete range: "<<low<<"~"<<high<<endl;
-	if(batch_delete(root, low, high))
+	if(batch_delete(root, low, high, user))
 	{
 		cout<<"Batch delete successed!"<<endl;
 	}
@@ -985,4 +987,41 @@ run_diagnose_and_repair(INDEX_NODE *root)
 	}
 
 	return(root);
+}
+
+/*This is used to setup auto backup.*/
+void *
+setup_auto_backup(void *arg)
+{
+	int backup_times = 0;
+        while(1)
+        {
+                sleep(5);
+                if(backup_times == 10)
+                {
+			INDEX_NODE *root = (INDEX_NODE *)arg;
+                        BACK_INFO *back_info;
+                        back_info = search_backup_info();
+                        if(!strcmp(back_info->filename, BACK_FILE1))
+                        {
+                                exec_write_all_data(root, BACK_FILE2);
+				free(back_info->filename);
+				free(back_info);
+				back_info = NULL;
+                        }
+                        else
+                        {
+                                exec_write_all_data(root, BACK_FILE1);
+				free(back_info->filename);
+                                free(back_info);
+                                back_info = NULL;
+                        }
+                        backup_times = 0;
+                }
+                else
+                {
+                        auto_backup();
+                        backup_times ++;
+                }
+        }
 }

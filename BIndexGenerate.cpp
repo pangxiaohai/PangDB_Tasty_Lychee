@@ -91,12 +91,8 @@ link_list(DATA_RECORD_LIST *data_list, int record_num)
 		new_node->back_node=NULL;
 		new_node->node_type = LEAF_NODE_TYPE;
 		new_node->front_node = cur_node;
+		new_node->node_lock = NO_LOCK;
 
-		//if(!set_node_lock(retval_list, NO_LOCK))
-		//{
-		//	return;
-		//}
-		
 		cur_node->back_node = new_node;
 
 		cur_data = cur_data->next_data;
@@ -411,10 +407,8 @@ generate_level(LEVEL_INFO *level_info)
 			new_node->pri_key = cur_node_info->node_addr->pri_key;
 			new_node->key_num = LEAST_P_NUM - 1;
 			new_node->node_type = INDEX_NODE_TYPE;
-			//if(!set_node_lock(new_node, NO_LOCK))
-			//{
-			//	return;
-			//}
+
+			new_node->node_lock = NO_LOCK;
 			
 			new_node_info->node_addr = new_node;
 			new_node_info->node_type = INDEX_NODE_TYPE;
@@ -454,10 +448,8 @@ generate_level(LEVEL_INFO *level_info)
                         new_node->pri_key = cur_node_info->node_addr->pri_key;
                         new_node->key_num = left_node - 1;
 			new_node->node_type = INDEX_NODE_TYPE;
-                        //if(!set_node_lock(new_node, NO_LOCK))
-			//{
-			//	return;
-			//}
+		
+			new_node->node_lock = NO_LOCK;
 
                         new_node_info->node_addr = new_node;
                         new_node_info->node_type = INDEX_NODE_TYPE;

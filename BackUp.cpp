@@ -27,7 +27,6 @@ DATA_INFO *exec_read_data(char *);
 BACK_INFO *search_backup_file(void);
 int write_file_according_log(char *, LOG_INFO *);
 RUN_RESULT auto_backup(void);
-void *setup_auto_backup(void *);
 
 
 /*This is used to write all data to disk file.*/
@@ -190,18 +189,6 @@ data_recovery(void)
 
 	return(ret_root);
 }
-
-/*This is used to setup auto backup.*/
-void *
-setup_auto_backup(void *arg)
-{
-	while(1)
-	{
-		sleep(5);
-		auto_backup();
-	}
-}
-
 
 /*This is used to soft backup*/
 /*In this mod, no data need to be lock.*/

@@ -187,7 +187,7 @@ redo_according_log(INDEX_NODE *root, LOG_INFO *log_info)
 	{
 		if(cur_log->act == INSERT)
 		{
-			if(insert_node(root, cur_log->data_record))
+			if(insert_node(root, cur_log->data_record, FAKE_PID))
 			{
 				success ++;
 			}
@@ -198,7 +198,7 @@ redo_according_log(INDEX_NODE *root, LOG_INFO *log_info)
 		}
 		else if(cur_log->act == UPDATE)
 		{
-			if(update_value(root, cur_log->data_record))
+			if(update_value(root, cur_log->data_record, FAKE_PID))
 			{
 				success ++;
                         }
@@ -209,7 +209,7 @@ redo_according_log(INDEX_NODE *root, LOG_INFO *log_info)
 		}
 		else if(cur_log->act == DELETE)
 		{
-			if(delete_node(root, cur_log->data_record->key))
+			if(delete_node(root, cur_log->data_record->key, FAKE_PID))
 			{
                                 success ++;
                         }

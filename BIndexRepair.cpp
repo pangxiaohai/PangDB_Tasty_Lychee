@@ -169,7 +169,7 @@ LEAF_NODE *
 get_next_leaf_by_index_tree(INDEX_NODE *root, LEAF_NODE *cur_leaf, SEARCH_DIR direction)
 {
 	LEAF_NODE *ret;
-	NODE_PATH_INFO *node_path = scan_node(root, cur_leaf->data_record->key);
+	NODE_PATH_INFO *node_path = scan_node(root, cur_leaf->data_record->key, FAKE_PID);
 
 	if(!node_path->status)
 	{

@@ -110,11 +110,11 @@ run_lock_block_test(INDEX_NODE *root)
 	show_all_lock_record();
 	/*For Debug.*/
 	//show_all_lock_info();
-	show_node_lock_status(res);
+	//show_node_lock_status(res);
 
 	cout<<"Wait 2 sec. Then apply again."<<endl;
 	sleep(2);
-	show_node_lock_status(res);
+	//show_node_lock_status(res);
 	
 	/*For Debug.*/
 	//show_all_lock_info();

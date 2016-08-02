@@ -57,19 +57,19 @@ run_range_search_test(INDEX_NODE *root)
 	
 	/*Range Search Test 1.*/
 	cout<<"Range search test1:\n"<<range[0]<<" ~ "<<range[1]<<" ASC:\n"<<endl;
-	range_search(root, range[0], range[1], ASC);
+	range_search(root, range[0], range[1], ASC, FAKE_PID);
 
 	/*Range Search Test 2.*/
         cout<<"Range search test2:\n"<<range[2]<<" ~ "<<range[3]<<" DSC:\n"<<endl;
-        range_search(root, range[2], range[3], DSC);
+        range_search(root, range[2], range[3], DSC, FAKE_PID);
 
 	/*Range Search Test 3.*/
         cout<<"Range search test3:\n"<<range[3]<<" ~ "<<range[4]<<" ASC:\n"<<endl;
-        range_search(root, range[3], range[4], ASC);
+        range_search(root, range[3], range[4], ASC, FAKE_PID);
 
 	/*Range Search Test 4.*/
         cout<<"Range search test4:\n"<<range[4]<<" ~ "<<range[5]<<" DSC:\n"<<endl;
-        range_search(root, range[4], range[5], DSC);
+        range_search(root, range[4], range[5], DSC, FAKE_PID);
 
 	return(RUN_SUCCESS);
 }
@@ -80,19 +80,19 @@ run_top_bottom_test(INDEX_NODE *root)
 {
 	/*Top Bottom Test 1.*/
         cout<<"Bottom test1:\n"<<"BOTTOM 12 ASC:\n"<<endl;
-        bottom_search(root, 12, ASC);
+        bottom_search(root, 12, ASC, FAKE_PID);
 
 	/*Top Bottom Test 2.*/
         cout<<"Top test2:\n"<<"TOP 10 DSC:\n"<<endl;
-        top_search(root, 10, DSC);
+        top_search(root, 10, DSC, FAKE_PID);
 
 	/*Top Bottom Test 3.*/
         cout<<"Bottom test3:\n"<<"BOTTOM 102 DSC:\n"<<endl;
-        bottom_search(root, 102, DSC);
+        bottom_search(root, 102, DSC, FAKE_PID);
 
 	/*Top Bottom Test 4.*/
         cout<<"Top test4:\n"<<"TOP 107 ASC:\n"<<endl;
-        top_search(root, 107, ASC);
+        top_search(root, 107, ASC, FAKE_PID);
 
         return(RUN_SUCCESS);
 }
@@ -105,12 +105,12 @@ run_read_test(INDEX_NODE *root)
 	int test1 = (int)(rand()%KEY_RANGE);
 	cout<<"Read test1:\n"<<"Read a random key: "<<test1
 		<<"\nThis key may not exsit.\n"<<endl;
-	read_value(root, test1);
+	read_value(root, test1, FAKE_PID);
 
 	/*Read Test 2*/
         int test2 = -232;
         cout<<"Read test2:\n"<<"Read an invalid key: "<<test2<<"\n"<<endl;
-        read_value(root, test2);
+        read_value(root, test2, FAKE_PID);
 
 	/*Read Test 3*/
 	int near_key = (int)(rand()%KEY_RANGE);
@@ -119,8 +119,10 @@ run_read_test(INDEX_NODE *root)
         int test3 = produce_actual_key(root, near_key);
 
         cout<<"Read test3:\n"<<"Read actual key: "<<test3<<"\n"<<endl;
-        read_value(root, test3);
-	
+        read_value(root, test3, FAKE_PID);
+
+	/*For test lock.*/
+	//show_all_lock_record();	
 	return(RUN_SUCCESS);
 }
 
@@ -144,17 +146,17 @@ run_update_test(INDEX_NODE *root)
 	
         cout<<"Update test1:\n"<<"Update value with a random key: "<<rand_key1
                 <<"\nThis key may not exsit.\n"<<endl;
-	if(update_value(root, data1))
+	if(update_value(root, data1, FAKE_PID))
 	{
 		cout<<"Key exsits!\n"<<endl;
-		read_value(root, rand_key1);
+		read_value(root, rand_key1, FAKE_PID);
 		cout<<"Value has been changed!\n"<<endl;
 	}
 	free(data1->value);
 	data1->value = NULL;
 	free(data1);
 	data1 = NULL;
-	
+
 	 /*Update Test 2.*/
         int near_key2 = (int)(rand()%KEY_RANGE), act_key2;
         act_key2 = produce_actual_key(root, near_key2);
@@ -164,9 +166,9 @@ run_update_test(INDEX_NODE *root)
 	data2->len = len;
 
         cout<<"Update test2:\n"<<"Update value with an actual key: "<<act_key2<<endl;
-        if(update_value(root, data2))
+        if(update_value(root, data2, FAKE_PID))
 	{
-		read_value(root, act_key2);
+		read_value(root, act_key2, FAKE_PID);
                 cout<<"Value has been changed!\n"<<endl;
 	}
 	free(data2->value);
@@ -180,19 +182,21 @@ run_update_test(INDEX_NODE *root)
         data3->key = act_key3;
 
 	LEAF_NODE *leaf;
-	leaf = exec_read_value(root, act_key3);
+	leaf = exec_read_value(root, act_key3, FAKE_PID);
 	data3->value = create_n_byte_mem(len);
 	strcpy(data3->value, leaf->data_record->value);
 	data3->len = len;
 
         cout<<"Update test3:\n"<<"Update value with an actual"
 		<<" key and its original value: "<<act_key3<<endl;
-        if(update_value(root, data3))
+        if(update_value(root, data3, FAKE_PID))
         {
-                read_value(root, act_key3);
+                read_value(root, act_key3, FAKE_PID);
                 cout<<"Value has been changed!\n"<<endl;
         }
-	
+
+	/*For test lock.*/
+	//show_all_lock_record();	
 	return(RUN_SUCCESS);
 }
 
@@ -206,7 +210,7 @@ run_delete_test(INDEX_NODE *root)
 	cout<<"Delete test1:\n"<<"Delete by using a random key: "<<key1
                 <<"\nThis key may not exsit.\n"<<endl;
 	
-	if(!(delete_node(root, key1)))
+	if(!(delete_node(root, key1, FAKE_PID)))
 	{
 		cout<<"Non-exisit value cannot be deleted!\n"<<endl;
 	}
@@ -217,7 +221,7 @@ run_delete_test(INDEX_NODE *root)
 	cout<<"Delete test2:\n"<<"Delete by using an invalid key: "<<key2
                 <<"\nAn error will be reported!\n"<<endl;
 
-        if(!(delete_node(root, key2)))
+        if(!(delete_node(root, key2, FAKE_PID)))
         {
 		cout<<"No value deleted!\n"<<endl;
 	}
@@ -229,13 +233,13 @@ run_delete_test(INDEX_NODE *root)
 	cout<<"Delete test3:\n"<<"Delete by using key: "<<act_key3
 		<<"\nDelete this data will lead node merge.\n";
 	cout<<"Read the original data:\n"<<endl;
-	read_value(root, act_key3);
+	read_value(root, act_key3, FAKE_PID);
 	cout<<"Delete the data.\n";
-	if(delete_node(root, act_key3))
+	if(delete_node(root, act_key3, FAKE_PID))
 	{
 		cout<<"Delete the data successfully!\n"
 			<<"Read the data again.\n"<<endl;
-		read_value(root, act_key3);
+		read_value(root, act_key3, FAKE_PID);
 		
 		cout<<"Draw the tree.\n"<<endl;
 		draw_a_tree(root);
@@ -245,6 +249,7 @@ run_delete_test(INDEX_NODE *root)
 		cout<<"Delete failed.\n"<<endl;
 	}
 
+	//show_all_lock_record();
 	return(RUN_SUCCESS);
 }
 
@@ -267,16 +272,16 @@ run_insert_test(INDEX_NODE *root)
         cout<<"Insert test1:\n"<<"Insert data with key: "<<key1
                 <<"  value: "<<data1->value<<endl;
 	cout<<"Read the data first:\n"<<endl;
-	read_value(root, key1);
+	read_value(root, key1, FAKE_PID);
 	cout<<"Data doesn't exist.\n"<<"Now insert the data."<<endl;
 
-	if(insert_node(root, data1))
+	if(insert_node(root, data1, FAKE_PID))
         {
                 cout<<"Insert successfully. Read the data again!"<<endl;
-		read_value(root, key1);
+		read_value(root, key1, FAKE_PID);
 		draw_a_tree(root);
         }
-	
+
         /*Insert Test 2*/
         int key2 = -782;
 	DATA_RECORD *data2 = create_data_record_mem();
@@ -290,7 +295,7 @@ run_insert_test(INDEX_NODE *root)
 		<<"  value: "<<data2->value
                 <<"\nAn error will be reported!\n"<<endl;
 
-        if(!(insert_node(root, data2)))
+        if(!(insert_node(root, data2, FAKE_PID)))
         {
                 cout<<"No value inserted!\n"<<endl;
         }
@@ -314,7 +319,7 @@ run_insert_test(INDEX_NODE *root)
                 <<"  value: "<<data3->value<<"\nSince key already exists,"
                 <<" an error will be reported!\n"<<endl;
 
-        if(!(insert_node(root, data3)))
+        if(!(insert_node(root, data3, FAKE_PID)))
         {
                 cout<<"No value inserted!\n"<<endl;
         }
@@ -353,7 +358,7 @@ run_insert_test(INDEX_NODE *root)
 	cout<<"Insert test4:\n"<<"Insert 4 data.\n"
 	<<"Insert 1st with key: "<<key4<<"  value: "<<data4->value<<endl;
 	
-	if(insert_node(root, data4))
+	if(insert_node(root, data4, FAKE_PID))
 	{
 		cout<<"Insert successfully.\n"<<endl;
 		cout<<"Insert this key may change pri_key. So draw the tree."<<endl;
@@ -362,21 +367,21 @@ run_insert_test(INDEX_NODE *root)
 	
         cout<<"Insert 2nd with key: "<<key5<<"  value: "<<data5->value<<endl;
 
-        if(insert_node(root, data5))
+        if(insert_node(root, data5, FAKE_PID))
         {
                 cout<<"Insert successfully.\n"<<endl;
         }
 
 	cout<<"Insert 3rd with key: "<<key6<<"  value: "<<data6->value<<endl;
 
-        if(insert_node(root, data6))
+        if(insert_node(root, data6, FAKE_PID))
         {
                 cout<<"Insert successfully.\n"<<endl;
         }
 
 	cout<<"Insert 4th with key: "<<key7<<"  value: "<<data7->value<<endl;
 
-        if(insert_node(root, data7))
+        if(insert_node(root, data7, FAKE_PID))
         {
                 cout<<"Insert successfully.\n"<<endl;
 		cout<<"Insert these 4 data may lead node split.\n"
@@ -384,6 +389,8 @@ run_insert_test(INDEX_NODE *root)
 		draw_a_tree(root);
         }
 
+	/*For Test Lock.*/
+	//show_all_lock_record();
 	return(RUN_SUCCESS);
 }
 
@@ -427,7 +434,7 @@ run_batch_insert_test(INDEX_NODE *root)
 	{
 		key = begin + (int)(rand()%(KEY_RANGE/5));
 		cout<<"Check new candidate key: "<<key<<endl;
-		if(!exec_read_value(root, key))
+		if(!exec_read_value(root, key, FAKE_PID))
 		{
 			/*This key can be inserted.*/
 			cout<<"This is a valiable new key.\n"<<endl;
@@ -466,7 +473,7 @@ run_batch_insert_test(INDEX_NODE *root)
 	}
 
 	INDEX_NODE *res;
-	res = batch_insert(root, data_list);
+	res = batch_insert(root, data_list, FAKE_PID);
 	if(!res)
 	{
 		cout<<"Batch insert failed!\n"<<endl;
@@ -492,7 +499,7 @@ run_batch_delete_test(INDEX_NODE *root)
 
 	cout<<"Batch delete test: "<<endl;
 	cout<<"Delete range: "<<low<<"~"<<high<<endl;
-	if(batch_delete(root, low, high))
+	if(batch_delete(root, low, high, FAKE_PID))
 	{
 		cout<<"Batch delete successed! Draw the tree:"<<endl;
 		draw_a_tree(root);
