@@ -5,30 +5,32 @@
 #include<string>
 #include<string.h>
 #include<pthread.h>
-#include <unistd.h>
+#include<unistd.h>
 #include<sys/types.h>
+#include<sys/socket.h>
+#include<netinet/in.h>
+#include<arpa/inet.h>
 
 
 using namespace std;
 
 
-void setup_consol(void);
-void initial_display(void);
-void operate_consol_header(void);
-void operate_consol_display(void);
-void operate_exist(INDEX_NODE *);
+void *setup_consol(void *);
+void operate_exist(INDEX_NODE *, USER_INFO*);
 void *setup_auto_backup(void *);
+IDX_BOOL already_login(PID);
+void exit_client(USER_INFO *);
+
 
 /*Declare run operation functions.*/
-void run_read_data_operation(INDEX_NODE *, PID);
-void run_insert_data_operation(INDEX_NODE *, PID);
-void run_delete_data_operation(INDEX_NODE *, PID);
-void run_range_search_operation(INDEX_NODE *, PID);
-void run_update_data_operation(INDEX_NODE *, PID);
-void run_top_search_operation(INDEX_NODE *, PID);
-void run_bottom_search_operation(INDEX_NODE *, PID);
-void run_batch_insert_operation(INDEX_NODE *, PID);
-void run_batch_delete_operation(INDEX_NODE *, PID);
+void run_read_data_operation(INDEX_NODE *, USER_INFO *);
+void run_insert_data_operation(INDEX_NODE *, USER_INFO *);
+void run_delete_data_operation(INDEX_NODE *, USER_INFO *);
+void run_range_search_operation(INDEX_NODE *, USER_INFO *);
+void run_update_data_operation(INDEX_NODE *, USER_INFO *);
+void run_top_bottom_search_operation(INDEX_NODE *, USER_INFO *, int);
+void run_batch_insert_operation(INDEX_NODE *, USER_INFO *);
+void run_batch_delete_operation(INDEX_NODE *, USER_INFO *);
 void run_show_data_draw_tree_operation(INDEX_NODE *);
 void run_show_logs(INDEX_NODE *);
 INDEX_NODE *run_diagnose_and_repair(INDEX_NODE *);
@@ -37,7 +39,8 @@ INDEX_NODE *run_diagnose_and_repair(INDEX_NODE *);
 pthread_t backup_thread;
 pthread_t lock_clean_thread;
 
-PID lock_manager;
+INDEX_NODE *test_root;
+USER_INFO_LIST *user_info_list = NULL;
 
 
 int main(void)
@@ -53,312 +56,359 @@ int main(void)
 	{
 		cout<<"Create system files successed!\n"<<endl;
 	}
+	
+	pthread_t client_thread;
 
-	//lock_manager = createProcess();
+	string id_input = "Please input your user id:";
+	char buf[6];
+	buf[5] = '\0';
+	PID user_id;
+	
+	test_root = test_init();
+        pthread_create(&backup_thread,NULL, setup_auto_backup, (void *)test_root);
+        pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
 
-	setup_consol();
-	return 0;
-}
+	struct sockaddr_in server_addr;
+	struct sockaddr_in client_addr;
 
-/*This is used to setup a consol.*/
-void 
-setup_consol(void)
-{
-	INDEX_NODE *test_root;
-	int input, db_set = 0, in_test = 0;
-	string choose;
-	initial_display();
+	int server_sockfd, client_sockfd;
+	unsigned int client_len;
+
+	bzero((void *)&server_addr, sizeof(server_addr));
+	server_addr.sin_family = AF_INET;
+	server_addr.sin_addr.s_addr = INADDR_ANY;
+	server_addr.sin_port = htons(PORT);
+
+	server_sockfd = socket(AF_INET, SOCK_STREAM, 0);
+	bind(server_sockfd, (struct sockaddr *)&server_addr, sizeof(server_addr));
+	
+	listen(server_sockfd, CLIENT_NUM);
+	USER_INFO *user_info = NULL;
+
+	cout<<"Waiting..."<<endl;
+
+	char con_signal;
+	
 	while(1)
 	{
-		cin>>choose;
-		if(choose.length()>1)
+		client_sockfd = accept(server_sockfd, (struct sockaddr *)&client_addr, &client_len);
+
+		cout<<"Connected..."<<endl;
+		read(client_sockfd, &con_signal, 1);
+
+		write(client_sockfd, RECV_CMD, 8);
+		read(client_sockfd, buf, 5);
+		sscanf(buf, "%5d", &user_id);
+		
+		if(!strcmp(buf, ERR_CMD))
 		{
-			input = -1;
+			close(client_sockfd);
+		}	
+		else if(already_login(user_id))
+		{
+			write(client_sockfd, ALREADY_LOG, 8);
+                     	close(client_sockfd);
 		}
 		else
 		{
-			sscanf(choose.c_str(), "%1d", &input);
+			user_info = (USER_INFO *)malloc(sizeof(USER_INFO));
+			user_info->user_id = user_id;
+			user_info->sockfd = client_sockfd;
+		
+			pthread_create(&client_thread, NULL, setup_consol, (void *)user_info);
 		}
+	}
+
+	return 0;
+}
+
+/*This is used to check login.*/
+IDX_BOOL 
+already_login(PID user)
+{
+	USER_INFO_LIST *cur;
+	cur = user_info_list;
+
+	while(cur)
+	{
+		if(cur->user_info->user_id == user)
+		{
+			return(TRUE);
+		}
+		cur = cur->next_user;
+	}
+	return(FALSE);
+}
+
+/*This is used to setup a consol.*/
+void * 
+setup_consol(void *arg)
+{
+	USER_INFO *user_info = (USER_INFO *)arg;
+
+	USER_INFO_LIST *new_user = NULL;
+	new_user = (USER_INFO_LIST *)malloc(sizeof(USER_INFO_LIST));
+        new_user->user_info = user_info;	
+
+	new_user->thread = pthread_self();
+        new_user->next_user = user_info_list;
+        user_info_list = new_user;
+
+	PID user = user_info->user_id;
+	int client_sockfd = user_info->sockfd;
+	char choose[2];
+	choose[1] = '\0';
+
+	write(client_sockfd, DISPLAY_CMD, 8);
+
+	int input;
+
+	while(1)
+	{
+		read(client_sockfd, choose, 1);
+		sscanf(choose, "%d", &input);
 		switch(input)
 		{
 			case 1:
-				if(!db_set)
-				{
-					test_root = test_init();
-					pthread_create(&backup_thread,NULL, setup_auto_backup, (void *)test_root);
-					pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
-					db_set = 1;
-					in_test = 1;
-					run_exist(test_root);
-				}
-				else
-				{
-					run_exist(test_root);
-				}
-				initial_display();
+				run_exist(test_root);
+				write(client_sockfd, RIGHT_SIGNAL, 6);
 				break;
 			case 2:
-				if(db_set)
-				{
-					operate_exist(test_root);
-				}
-				else
-				{
-					test_root = test_init();
-					pthread_create(&backup_thread,NULL, setup_auto_backup, (void *)test_root);
-					pthread_create(&lock_clean_thread,NULL, auto_clean_lock, NULL);
-					db_set = 1;
-					in_test = 1;
-					operate_exist(test_root);
-				}
-				initial_display();
+				operate_exist(test_root, user_info);
 				break;
 			case 3:
-				if(in_test)
-				{
-					end_test(test_root);
-					cout<<"Quit!\n"<<endl;
-				}
-				return;
+				exit_client(user_info);
 			default:
-				cout<<"Invalid Input!\n"<<endl;
-				initial_display();
+				write(client_sockfd, INVALID_CMD, 8); 
 				break;
 		}
 	}
-	return;
 }
 
-/*This is used for initial display*/
-void 
-initial_display(void)
+/*This is used to exit a client.*/
+void
+exit_client(USER_INFO *user_info)
 {
-	cout<<"\
-		Welcom to PangDB!\n\
-		\n\
-		ԅ( ˘ω˘ ԅ) \n\
-		\n\
-		Please input your choice!\n\
-		1, Setup a test database and run tests;\n\
-		2, Initial a test database and have a try;\n\
-		3, exit.\n"<<endl;
+	USER_INFO_LIST *cur, *last;
+        cur = user_info_list;
+	int client_sockfd = user_info->sockfd;
+
+	if(user_info_list->user_info == user_info)
+	{
+		user_info_list = user_info_list->next_user;
+		free(user_info);
+		user_info = NULL;
+		free(cur);
+		cur = NULL;
+	}
+	else
+	{
+		last = user_info_list;
+		cur = user_info_list->next_user;
+
+        	while(cur)
+	        {
+        	        if(cur->user_info == user_info)
+                	{
+				last->next_user = cur->next_user;
+				free(user_info);
+				user_info = NULL;
+				free(cur);
+				cur = NULL;
+				break;
+			}
+			last = cur;
+			cur = cur->next_user;
+		}
+	}
+
+	write(client_sockfd, QUIT, 5);
+	close(client_sockfd);
+	pthread_exit((void *)NULL);
 	return;
 }
 
 /*This is used to operations on exist db.*/
 void
-operate_exist(INDEX_NODE *root)
+operate_exist(INDEX_NODE *root, USER_INFO *user_info)
 {
-	string choose;
+	char choose[2];
+	choose[1] = '\0';
 	int input;
-	operate_consol_header();
-	operate_consol_display();
 	while(1)
 	{
-		cin>>choose;
-                if(choose.length()>2)
-                {
-                        input = -1;
-                }
-		else
-		{
-			sscanf(choose.c_str(), "%2d", &input);
-		}
+		read(user_info->sockfd, choose, 1);
+		sscanf(choose, "%d", &input);
 
 		switch(input)
 		{
 			case 0:
-				run_read_data_operation(root, FAKE_PID);
-				operate_consol_display();
+				run_read_data_operation(root, user_info);
 				break;
 			case 1:
-				run_insert_data_operation(root, FAKE_PID);
-				operate_consol_display();
+				run_insert_data_operation(root, user_info);
 				break;
 			case 2:
-				run_delete_data_operation(root, FAKE_PID);
-				operate_consol_display();
+				run_delete_data_operation(root, user_info);
 				break;
 			case 3:
-                                run_range_search_operation(root, FAKE_PID);
-                                operate_consol_display();
+                                run_range_search_operation(root, user_info);
                                 break;
                         case 4:
-                                run_update_data_operation(root, FAKE_PID);
-                                operate_consol_display();
+                                run_update_data_operation(root, user_info);
                                 break;
                         case 5:
-                                run_top_search_operation(root, FAKE_PID);
-                                operate_consol_display();
+                                run_top_bottom_search_operation(root, user_info, 1);
                                 break;
 			case 6:
-                                run_bottom_search_operation(root, FAKE_PID);
-                                operate_consol_display();
+                                run_top_bottom_search_operation(root, user_info, 0);
                                 break;
                         case 7:
-                                run_batch_insert_operation(root, FAKE_PID);
-                                operate_consol_display();
+                                run_batch_insert_operation(root, user_info);
                                 break;
                         case 8:
-                                run_batch_delete_operation(root, FAKE_PID);
-                                operate_consol_display();
+                                run_batch_delete_operation(root, user_info);
                                 break;
+			/*Following operations not support for client.*/
+			/*
 			case 9:
 				run_show_data_draw_tree_operation(root);
-				operate_consol_display();
+				operate_consol_display(user_info->sockfd);
 				break;
 			case 10:
 				run_show_logs(root);
-				operate_consol_display();
+				operate_consol_display(user_info->sockfd);
                                 break;
 			case 11:
                                 root = run_diagnose_and_repair(root);
-                                operate_consol_display();
+                                operate_consol_display(user_info->sockfd);
                                 break;
-			case 12:
-				cout<<"Exit operation try!\n"<<endl;
+			*/
+			case 9:
 				return;
 			default:
-				cout<<"Invalid input.\n"<<endl;
-				operate_consol_display();	
+				write(user_info->sockfd, INVALID_CMD, 8);
 				break;
 		}
 	}
-}
-
-/*This is used for show operation consel header.*/
-void
-operate_consol_header(void)
-{
-	cout<<"\
-                A test database setup.\n\
-                Now you can try some operations.\n\
-		"<<endl;
-	return;
-}
-
-
-/*This is used for operation consel display.*/
-void
-operate_consol_display(void)
-{
-	cout<<"\
-		\n\
-                ԅ( ˘ω˘ ԅ) \n\
-                \n\
-		What operations do you want to try:\n\
-		0, read a data record.\n\
-		1, insert a data record.\n\
-		2, delete a data record.\n\
-		3, range search.\n\
-		4, update a data record.\n\
-		5, top search.\n\
-		6. bottom search.\n\
-		7. batch insert.\n\
-		8. batch delete.\n\
-		9. show all data and draw the tree.\n\
-		10. show some logs.\n\
-		11. diagnose and repair index tree.\n\
-		12. exit\n\
-		\n"<<endl;
-	return;
 }
 
 /*Following are run operation functions.*/
 
 /*This is used to run read data operation.*/
 void 
-run_read_data_operation(INDEX_NODE *root, PID user)
+run_read_data_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-	cout<<"Please input a key: "<<endl;
-	string key_buf;
-        cin>>key_buf;
+	PID user = user_info->user_id;
+	int sockfd = user_info->sockfd;
 
-        if(!is_pure_digit(key_buf))
-        {
-                cout<<"Invalid key!\n"<<endl;
-                return;
-        }
-
-	if(key_buf.length()>10)
+	write(sockfd, BEGIN_CMD, 6);
+	
+	char *signal = create_n_byte_mem(6);
+	signal[5] = '\0';
+	read(sockfd, signal, 6);
+ 
+	if(strcmp(signal, RIGHT_SIGNAL))
 	{
-		cout<<"Key is too long!\n"<<endl;
+		free(signal);
+		signal = NULL;
 		return;
 	}
+	else
+	{
+		free(signal);
+		signal = NULL;
+		write(sockfd, RECV_CMD, 8);
+	}	
+
+	char key_buf[11];
+	key_buf[10] = '\0';
+	read(sockfd, key_buf, 10);
 
         int input_key;
-        sscanf(key_buf.c_str(), "%10d", &input_key);
+        sscanf(key_buf, "%10d", &input_key);
 
-        if(input_key > KEY_RANGE)
-        {
-                cout<<"Key is too large!\n"<<endl;
-                return;
-        }
+	LEAF_NODE *res;
+        res = exec_read_value(root, input_key, user);
 
-	cout<<"Runnig read data operation.\n"<<endl;
-	read_value(root,input_key, user);
+        if(!res)
+	{
+		write(sockfd, NO_VALUE, 8);
+	}
+	else
+	{
+		write(sockfd, HAS_VALUE, 8);
+		char len_buf[4];
+		len_buf[3] = '\0';
+		sprintf(len_buf, "%3d", res->data_record->len);
+		write(sockfd, len_buf, 3);
+		write(sockfd, res->data_record->value, res->data_record->len);
+	}
+	
 	return;
 }
 
 /*This is used to run insert data operation.*/
 void 
-run_insert_data_operation(INDEX_NODE *root, PID user)
+run_insert_data_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-	cout<<"Please input a key: "<<endl;
-	string key_buf;
-	cin>>key_buf;
+	PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
 
-        if(!is_pure_digit(key_buf))
+	write(sockfd, BEGIN_CMD, 6);
+
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
+
+        if(strcmp(signal, RIGHT_SIGNAL))
         {
-                cout<<"Invalid key!\n"<<endl;
+                free(signal);
+                signal = NULL;
                 return;
         }
-
-        if(key_buf.length()>10)
+        else
         {
-                cout<<"Key is too long!\n"<<endl;
-                return;
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
         }
-
-	int input_key;
-	sscanf(key_buf.c_str(), "%10d", &input_key);
-
-	if(input_key > KEY_RANGE)
-	{
-		cout<<"Key is too large!\n"<<endl;
-		return;
-	}
-	
-	string value_buf;
-	
-	cout<<"Please input value: "<<endl;
-	cin>>value_buf;
+		
+	char len_buf[4];
+	len_buf[3] = '\0';
 	int len;
-	len = value_buf.length();
-	if(len>964)
-	{
-		cout<<"Value is too long!\n"<<endl;
-	}
+	char key_buf[11];
+	key_buf[10] = '\0';	
+	int input_key;
+
+	read(sockfd, key_buf, 10); 
+	sscanf(key_buf, "%10d", &input_key);
+	
+	read(sockfd, len_buf, 3);
+	sscanf(len_buf, "%3d", &len);
 
         DATA_RECORD *data;
         data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
         data->key = input_key;
 	data->value = create_n_byte_mem(len+1);
 	(data->value)[len] = '\0';
-	strncpy(data->value, value_buf.c_str(), len);
+
+	read(sockfd, data->value, len);
 	data->len = len;
 
 	if(!insert_node(root, data, user))
 	{
-		cout<<"Insert failed!\n"<<endl;
+		write(sockfd, OP_FAILED, 11); 
 		free(data->value);
 		free(data);
 		data = NULL;
 	}
 	else
 	{
-		cout<<"Insert key: "<<data->key<<" value: "<<data->value<<endl;
-		cout<<"Insert successed!\n"<<endl;
+		write(sockfd, OP_SUCCESS, 11);
+                free(data->value);
+                free(data);
+                data = NULL;
 	}
 
 	return;
@@ -366,376 +416,378 @@ run_insert_data_operation(INDEX_NODE *root, PID user)
 
 /*This is used to run delete data operation.*/
 void 
-run_delete_data_operation(INDEX_NODE *root, PID user)
+run_delete_data_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-        cout<<"Please input a key: "<<endl;
-	string key_buf;
-        cin>>key_buf;
+	PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
 
-        if(!is_pure_digit(key_buf))
+	write(sockfd, BEGIN_CMD, 6);
+
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
+
+        if(strcmp(signal, RIGHT_SIGNAL))
         {
-                cout<<"Invalid key!\n"<<endl;
+                free(signal);
+                signal = NULL;
                 return;
-        }
-
-        if(key_buf.length()>10)
-        {
-                cout<<"Key is too long!\n"<<endl;
-                return;
-        }
-
-        int input_key;
-        sscanf(key_buf.c_str(), "%10d", &input_key);
-
-        if(input_key > KEY_RANGE)
-        {
-                cout<<"Key is too large!\n"<<endl;
-                return;
-        }
-
-        if(!delete_node(root, input_key, user))
-        {
-                cout<<"Delete failed!\n"<<endl;
         }
         else
         {
-                cout<<"Delete successed!\n"<<endl;
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
+        }
+
+	char key_buf[11];
+        key_buf[10] = '\0';
+        read(sockfd, key_buf, 10);
+
+        int input_key;
+        sscanf(key_buf, "%10d", &input_key);
+
+        if(!delete_node(root, input_key, user))
+        {
+		write(sockfd, OP_FAILED, 11);
+        }
+        else
+        {
+		write(sockfd, OP_SUCCESS, 11);
         }
 	return;
 }
 
 /*This is used to run range search operation.*/
 void 
-run_range_search_operation(INDEX_NODE *root, PID user)
+run_range_search_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-	int low, high;
-	ASC_DSC order;
-	
-	string low_buf, high_buf, choose_buf;
+        PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
 
-	cout<<"Please input a integer to spicify sub bound: "<<endl;
-        cin>>low_buf;
+	write(sockfd, BEGIN_CMD, 6);
 
-	if(!is_pure_digit(low_buf))
-	{
-		cout<<"Invalid sub bound key!\n"<<endl;
-		return;
-	}
-	
-	if(low_buf.length() > 10)
-	{
-		cout<<"Key is too long!\n"<<endl;
-		return;
-	}
-	else
-	{
-		sscanf(low_buf.c_str(), "%10d", &low);
-	}
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
 
-	if(low>KEY_RANGE)
-	{
-		cout<<"Sub bound is larger than max key! No result will return!\n"<<endl;
-		return;
-	}
-	
-	if(low < 0)
-	{
-		cout<<"All keys are larger than 0. Sub bound will be replaced by 0.\n"<<endl;
-		low = 0;
-	}
-
-	cout<<"Please input a integer to spicify up bound: "<<endl;
-        cin>>high_buf;
-
-	if(!is_pure_digit(high_buf))
+        if(strcmp(signal, RIGHT_SIGNAL))
         {
-                cout<<"Invalid up bound key!\n"<<endl;
+                free(signal);
+                signal = NULL;
                 return;
-        }
-
-        if(high_buf.length() > 10)
-        {
-                cout<<"Key is too long! Will be replaced by largest key allowed!\n"<<endl;
-		high = KEY_RANGE;
         }
         else
         {
-                sscanf(high_buf.c_str(), "%10d", &high);
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
         }
 
-	if(high < 0)
-	{
-		cout<<"All keys are larger than 0. No result will return.\n"<<endl;
-		return;
-	}
+        char low_buf[11], high_buf[11];
+        low_buf[10] = high_buf[10] = '\0';
+        read(sockfd, low_buf, 10);
+	read(sockfd, high_buf, 10);
 
-	cout<<"Please chose display order:\n1, ASC; 2, DSC.\n"<<endl;
-	cin>>choose_buf;
-	if(choose_buf == "1")
+        int low, high;
+        sscanf(low_buf, "%10d", &low);
+	sscanf(high_buf, "%10d", &high);
+
+	char order_buf[4];
+	read(sockfd, order_buf, 3);
+
+	ASC_DSC order;
+
+	if(!strcmp(order_buf, ASC_CMD))
 	{
 		order = ASC;
 	}
-	else if(choose_buf == "2")
+	else
 	{
 		order = DSC;
 	}
-	else
-	{
-		cout<<"Invilid input!\n"<<endl;
+
+	DOUBLE_LEAF_LINK *result_link;
+
+        result_link = exec_range_search(root, low, high, user);
+
+	int num = 0;
+	char num_buf[4];
+	num_buf[3] = '\0';	
+
+        if(!result_link)
+        {
+		sprintf(num_buf, "%3d", num);
+		write(sockfd, num_buf, 3);
 		return;
+        }
+
+        DOUBLE_LEAF_LINK *cur_link = result_link;
+	num = 1;
+	while(cur_link->next_link)
+	{
+		cur_link = cur_link->next_link;
+		num ++;
 	}
 
-	if(range_search(root, low, high, order, user))
+	sprintf(num_buf, "%3d", num);
+	write(sockfd, num_buf, 3);
+
+	char len_buf[4], key_buf[11];
+	len_buf[3] = key_buf[10] = '\0';
+        if(order == ASC)
 	{
-		cout<<"Range search successed!\n"<<endl;
-		return;
+		cur_link = result_link;
 	}
-	else
+
+	while(cur_link)
 	{
-		cout<<"Range search failed!\n"<<endl;
+		sprintf(key_buf, "%10d", cur_link->leaf_node->data_record->key);
+		write(sockfd, key_buf, 10);
+		sprintf(len_buf, "%3d", cur_link->leaf_node->data_record->len);
+		write(sockfd, len_buf, 3);
+		write(sockfd, cur_link->leaf_node->data_record->value, cur_link->leaf_node->data_record->len);
+		
+		if(order == ASC)
+		{
+			cur_link = cur_link->next_link;
+		}
+		else
+		{
+			cur_link = cur_link->front_link;
+		}
 	}
+	
+	free_double_leaf_link_mem(result_link);
+	return;
 }
 
 /*This is used to run update data operation.*/
 void 
-run_update_data_operation(INDEX_NODE *root, PID user)
+run_update_data_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-        cout<<"Please input a key: "<<endl;
-	string key_buf;
-        cin>>key_buf;
+        PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
 
-        if(!is_pure_digit(key_buf))
+        write(sockfd, BEGIN_CMD, 6);
+
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
+
+        if(strcmp(signal, RIGHT_SIGNAL))
         {
-                cout<<"Invalid key!\n"<<endl;
+                free(signal);
+                signal = NULL;
                 return;
         }
-
-        if(key_buf.length()>10)
+        else
         {
-                cout<<"Key is too long!\n"<<endl;
-                return;
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
         }
 
-        int input_key;
-        sscanf(key_buf.c_str(), "%10d", &input_key);
+        char key_buf[11];
+        key_buf[10] = '\0';
+        read(sockfd, key_buf, 10);
 
-        if(input_key > KEY_RANGE)
-        {
-                cout<<"Key is too large!\n"<<endl;
-                return;
-        }
+        int input_key, len;
+        sscanf(key_buf, "%10d", &input_key);
 
-        string value_buf;
+	char len_buf[4];
+	len_buf[3] = '\0';
 
-        cout<<"Please input value: "<<endl;
-        cin>>value_buf;
-        int len;
-        len = value_buf.length();
-        if(len>974)
-        {
-                cout<<"Value is too long!\n"<<endl;
-        }
+	read(sockfd, len_buf, 3);
+	sscanf(len_buf, "%3d", &len);
 
         DATA_RECORD *data;
         data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
         data->key = input_key;
         data->value = create_n_byte_mem(len+1);
         (data->value)[len] = '\0';
-        strncpy(data->value, value_buf.c_str(), len);
+        read(sockfd, data->value, len);
         data->len = len;
 	
-	if(update_value(root, data, user))
+	if(!update_value(root, data, user))
 	{
-		cout<<"Update successed!"<<endl;
-	}
-	else
-	{
-		cout<<"Update failed!"<<endl;
-	}
+                write(sockfd, OP_FAILED, 11);
+        }
+        else
+        {
+                write(sockfd, OP_SUCCESS, 11);
+        }
 
+	free(data->value);
 	free(data);
 	data = NULL;
 	return;
 }
 
-/*This is used to run top search operation.*/
+/*This is used to run top or bottom search operation.*/
 void 
-run_top_search_operation(INDEX_NODE *root, PID user)
+run_top_bottom_search_operation(INDEX_NODE *root, USER_INFO *user_info, int is_top)
 {
-	string num_buf, asc_dsc;
-        cout<<"Please input a number to spicify how many records to fetch: "<<endl;
-        cin>>num_buf;
+        PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
 
-	if(!is_pure_digit(num_buf))
-	{
-		cout<<"Invalid number!\n"<<endl;
-		return;
-	}
+        write(sockfd, BEGIN_CMD, 6);
 
-	int num;	
-	sscanf(num_buf.c_str(), "%d", &num);
-	
-	ASC_DSC order;
-	cout<<"Please chose display order:\n1, ASC; 2, DSC.\n"<<endl;
-        cin>>asc_dsc;
-        if(asc_dsc == "1")
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
+
+        if(strcmp(signal, RIGHT_SIGNAL))
         {
-                order = ASC;
-        }
-        else if(asc_dsc == "2")
-        {
-                order = DSC;
+                free(signal);
+                signal = NULL;
+                return;
         }
         else
         {
-                cout<<"Invilid input!\n"<<endl;
-                return;
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
         }
 
-	if(top_search(root, num, order, user))
-	{
-		cout<<"Search successed!\n"<<endl;
+	char num_buf[6], order_buf[4];
+	num_buf[5] = order_buf[3] = '\0';
+	int num;
+
+	read(sockfd, num_buf, 5);
+	read(sockfd, order_buf, 3);
+	sscanf(num_buf, "%5d", &num);
+	
+        ASC_DSC order;
+
+        if(!strcmp(order_buf, ASC_CMD))
+        {
+                order = ASC;
+        }
+        else
+        {
+                order = DSC;
+        }
+
+	SINGLE_LEAF_LINK *res = NULL;
+
+	int res_num = 0;
+	char res_num_buf[6], len_buf[4], key_buf[11];
+	res_num_buf[5] = len_buf[3] = key_buf[10] = '\0';
+
+	if(is_top)
+	{	
+        	res = exec_top_search(root, num, order, user);
 	}
 	else
 	{
-		cout<<"Search failed!\n"<<endl;
+		res = exec_bottom_search(root, num, order, user);
 	}
 
-	return;
-}
-
-/*This is used to run bottom search operation.*/
-void 
-run_bottom_search_operation(INDEX_NODE *root, PID user)
-{
-        string num_buf, asc_dsc;
-        cout<<"Please input a number to spicify how many records to fetch: "<<endl;
-        cin>>num_buf;
-
-        if(!is_pure_digit(num_buf))
+        if(!res)
         {
-                cout<<"Invalid number!\n"<<endl;
-                return;
+		sprintf(res_num_buf, "%5d", res_num);
+		write(sockfd, res_num_buf, 5);
+		return;
         }
 
-        int num;
-        sscanf(num_buf.c_str(), "%d", &num);
+        SINGLE_LEAF_LINK *cur;
+        cur = res;
 
-        ASC_DSC order;
-        cout<<"Please chose display order:\n1, ASC; 2, DSC.\n"<<endl;
-        cin>>asc_dsc;
-        if(asc_dsc == "1")
-        {
-                order = ASC;
-        }
-        else if(asc_dsc == "2")
-        {
-                order = DSC;
-        }
-        else
-        {
-                cout<<"Invilid input!\n"<<endl;
-                return;
-        }
+	res_num = 1;
+        while(cur->next_link)
+	{
+		cur = cur->next_link;
+		res_num ++;
+	}
 
-        if(bottom_search(root, num, order, user))
-        {
-                cout<<"Search successed!\n"<<endl;
-        }
-        else
-        {
-                cout<<"Search failed!\n"<<endl;
-        }
+	sprintf(res_num_buf, "%5d", res_num);
+        write(sockfd, res_num_buf, 5);
 
+	cur = res;
+	while(cur)
+	{
+		sprintf(key_buf, "%10d", cur->leaf_node->data_record->key);
+		write(sockfd, key_buf, 10);
+		sprintf(len_buf, "%3d", cur->leaf_node->data_record->len);
+		write(sockfd, len_buf, 3);
+		write(sockfd, cur->leaf_node->data_record->value, cur->leaf_node->data_record->len);
+		cur = cur->next_link;
+	}
+
+	free_single_leaf_link_mem(res);
+	res = NULL;
+	
 	return;
 }
 
 /*This is used to run batch insert operation.*/
 void 
-run_batch_insert_operation(INDEX_NODE *root, PID user)
+run_batch_insert_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-	string num_buf;
-	cout<<"Please input how many data to insert:"<<endl;
-	cin>>num_buf;
-	
-	if(!is_pure_digit(num_buf))
-	{
-		cout<<"Invalid input!"<<endl;
-		return;
-	}
-	
-	if(num_buf.length()>4)
-	{
-		cout<<"Too many data!"<<endl;
-		return;
-	}
-	int num;
-	sscanf(num_buf.c_str(), "%4d", &num);
-	if(num <= 0)
-	{
-		cout<<"Invalid input!"<<endl;
-		return;
-	}
+        PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
+
+        write(sockfd, BEGIN_CMD, 6);
+
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
+
+        if(strcmp(signal, RIGHT_SIGNAL))
+        {
+                free(signal);
+                signal = NULL;
+                return;
+        }
+        else
+        {
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
+        }
+
+        char num_buf[6];
+        num_buf[5] = '\0';
+        int num;
+
+        read(sockfd, num_buf, 5);
+        sscanf(num_buf, "%5d", &num);
 
 	int i = 0, key, len;
 	DATA_RECORD_LIST *data_list, *cur_data, *new_data;
+	DATA_RECORD *data;
 	data_list = NULL;
-	string key_buf, value_buf;	
+	char key_buf[11], len_buf[4];
+	key_buf[10] = len_buf[3] = '\0';	
 
 	while(i != num)
 	{
-		cout<<"Please input a key:"<<endl;
-		cin>>key_buf;
-		if(!is_pure_digit(key_buf))
-	        {
-        	        cout<<"Invalid key!\n"<<endl;
-                	continue;
-        	}
+	        read(sockfd, key_buf, 10);
+        	sscanf(key_buf, "%10d", &key);
 
-        	if(key_buf.length()>10)
-        	{
-                	cout<<"Key is too long!\n"<<endl;
-                	continue;
-        	}
+        	read(sockfd, len_buf, 3);
+        	sscanf(len_buf, "%3d", &len);
 
-	        sscanf(key_buf.c_str(), "%10d", &key);
+        	data = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
+	        data->key = key;
+        	data->value = create_n_byte_mem(len+1);
+	        (data->value)[len] = '\0';
 
-        	if(key<0)
-        	{
-                	cout<<"Negtive key is not supported."<<endl;
-                	continue;
-        	}
-        	else if(key > KEY_RANGE)
-        	{
-                	cout<<"Key is larger than key range."<<endl;
-                	continue;
-        	}
+        	read(sockfd, data->value, len);
+	        data->len = len;
 		
-		cout<<"Please input a value:"<<endl;
-                cin>>value_buf;
 		if(i == 0)
 		{
 			data_list = create_data_record_list_mem();
-			data_list->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
-			data_list->data_record->key = key;
-			len = value_buf.length();
-			data_list->data_record->len = len;
-			data_list->data_record->value = create_n_byte_mem(len+1);
-			data_list->data_record->value[len] = '\0';
-			strncpy(data_list->data_record->value, value_buf.c_str(), len);
+			data_list->data_record = data;
 			cur_data = data_list;
 			data_list->next_data = NULL;
 		}
 		else
 		{
                         new_data = create_data_record_list_mem();
-                        new_data->data_record = (DATA_RECORD *)malloc(sizeof(DATA_RECORD));
-                        new_data->data_record->key = key;
-                        len = value_buf.length();
-                        new_data->data_record->len = len;
-                        new_data->data_record->value = create_n_byte_mem(len+1);
-                        new_data->data_record->value[len] = '\0';
-                        strncpy(new_data->data_record->value, value_buf.c_str(), len);
+                        new_data->data_record = data;
                         new_data->next_data = NULL;
 			cur_data->next_data = new_data;
 			cur_data = cur_data->next_data;
@@ -744,93 +796,63 @@ run_batch_insert_operation(INDEX_NODE *root, PID user)
 		i++;
 	}
 
-	if(batch_insert(root, data_list, user))
+	if(!batch_insert(root, data_list, user))
 	{
-		cout<<"Batch insert successed!"<<endl;
-	}
-	else
-	{
-		cout<<"Batch isnert failed!"<<endl;
-		free_data_record_list_mem(data_list);
-	}	
+                write(sockfd, OP_FAILED, 11);
+        }
+        else
+        {
+                write(sockfd, OP_SUCCESS, 11);
+        }
 
 	return;
 }
 
 /*This is used to run batch delete operation.*/
 void 
-run_batch_delete_operation(INDEX_NODE *root, PID user)
+run_batch_delete_operation(INDEX_NODE *root, USER_INFO *user_info)
 {
-	cout<<"Please input the low bound of delete range:"<<endl;
-	string low_buf;
-	cin>>low_buf;
+	PID user = user_info->user_id;
+        int sockfd = user_info->sockfd;
 
-	if(!is_pure_digit(low_buf))
+        write(sockfd, BEGIN_CMD, 6);
+
+        char *signal = create_n_byte_mem(6);
+        signal[5] = '\0';
+        read(sockfd, signal, 6);
+
+        if(strcmp(signal, RIGHT_SIGNAL))
         {
-                cout<<"Invalid key!\n"<<endl;
+                free(signal);
+                signal = NULL;
                 return;
         }
-
-        if(low_buf.length()>10)
+        else
         {
-                cout<<"Key is too long!\n"<<endl;
-                return;
-        }	
-	
-	int low;
-	sscanf(low_buf.c_str(), "%10d", &low);
-	
-	if(low<0)
-	{
-		cout<<"Negtive key is not supported. Replace it with 0.\n"<<endl;
-		low = 0;
-	}
-	else if(low > KEY_RANGE)
-	{
-		cout<<"Low bound is larger than key range. No key to delete."<<endl;
-		return;
-	}
-
-	cout<<"Please input the high bound of delete range:"<<endl;
-        string high_buf;
-        cin>>high_buf;
-
-        if(!is_pure_digit(high_buf))
-        {
-                cout<<"Invalid key!\n"<<endl;
-                return;
+                free(signal);
+                signal = NULL;
+                write(sockfd, RECV_CMD, 8);
         }
 
-        if(high_buf.length()>10)
+        char low_buf[11], high_buf[11];
+        low_buf[10] = high_buf[10] = '\0';
+        int low, high;
+
+        read(sockfd, low_buf, 10);
+        sscanf(low_buf, "%10d", &low);
+
+	read(sockfd, high_buf, 10);
+        sscanf(high_buf, "%10d", &high);
+
+	if(!batch_delete(root, low, high, user))
         {
-                cout<<"Key is too long!\n"<<endl;
-                return;
+                write(sockfd, OP_FAILED, 11);
+        }
+        else
+        {
+                write(sockfd, OP_SUCCESS, 11);
         }
 
-        int high;
-        sscanf(high_buf.c_str(), "%10d", &high);
-
-        if(high < 0)
-        {
-                cout<<"High bound is less than 0. No key to delete.\n"<<endl;
-                return;
-        }
-        else if(high > KEY_RANGE)
-        {
-                cout<<"High bound is larger than key range. Replace it with largest key."<<endl;
-                high = KEY_RANGE + 1;
-        }
-	
-	cout<<"Do the batch delete!"<<endl;
-	cout<<"Delete range: "<<low<<"~"<<high<<endl;
-	if(batch_delete(root, low, high, user))
-	{
-		cout<<"Batch delete successed!"<<endl;
-	}
-	else
-	{
-		cout<<"Batch delete failed!"<<endl;
-	}
 	return;
 }
 

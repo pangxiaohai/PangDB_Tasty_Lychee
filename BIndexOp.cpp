@@ -284,20 +284,6 @@ search_special_leaf(INDEX_NODE *root, FIRST_OR_LAST fir_last)
 	NODE_PATH_INFO *ret_node_path = create_node_path_info_mem();
 	INDEX_NODE_LINK *index_node_link = create_index_node_link_mem();
 
-	/*
-	if(!apply_read_lock(root))
-	{
-		cout<<"ALl data have been locked!\n"<<endl;
-		
-		free(ret_node_path);
-		free(index_node_link);
-		ret_node_path = NULL;
-		index_node_link = NULL;
-
-		return(NULL);
-	}
-	*/
-	
 	ret_node_path->index_node_link = index_node_link;
 	ret_node_path->is_include_leaf = FALSE;
 	ret_node_path->status = RUN_FAILED;
@@ -322,21 +308,6 @@ search_special_leaf(INDEX_NODE *root, FIRST_OR_LAST fir_last)
 	
 	while(!is_leaf_node(cur_node))
 	{
-		/*
-		if(!apply_read_lock(cur_node))
-		{
-			cout<<"Some data can not get!\n"<<endl;
-			free_read_lock(ret_node_path);
-
-			free(ret_node_path);
-                	free(index_node_link);
-               		ret_node_path = NULL;
-                	index_node_link = NULL;
-
-                	return(NULL);
-		}
-		*/
-
 		INDEX_NODE_LINK *new_node_link;
 		new_node_link = create_index_node_link_mem();
 		new_node_link->index_node = cur_node;
@@ -401,6 +372,9 @@ top_search(INDEX_NODE *root, int num, ASC_DSC asc_dsc, PID user)
 		cout<<"Not enough records!\n";
 	}
 	cout<<endl;
+
+	free_single_leaf_link_mem(res);
+	res = NULL;
 	return(RUN_SUCCESS);
 }
 
@@ -475,7 +449,7 @@ exec_top_search(INDEX_NODE *root, int num, ASC_DSC asc_dsc, PID user)
 	}
 	else
 	{
-		int mark = 0;
+		int mark = 1;
 		while((mark != num) && (cur_node->front_node))
 		{
 			cur_node = cur_node->front_node;
@@ -483,7 +457,6 @@ exec_top_search(INDEX_NODE *root, int num, ASC_DSC asc_dsc, PID user)
 		}
 		
 		ret_link->leaf_node = cur_node;
-                node_num = 1;
                 cur_node = cur_node->back_node;
 
                 while(cur_node)
@@ -797,12 +770,10 @@ search_near_leaf(INDEX_NODE *root, int num, SUB_UP mark)
 	while(!is_leaf_node(cur_node))
 	{
 		node_set  = 0;
-		//apply_read_index_lock(cur_node);
 		for(int i = 0; i != cur_node->key_num; ++i)
 		{
 			if(cur_node->key_list[i] >= num)
 			{
-				//free_read_index_lock(cur_node);
 				cur_node = cur_node->p_node[i];
 				node_set = 1;
 				break;
@@ -811,7 +782,6 @@ search_near_leaf(INDEX_NODE *root, int num, SUB_UP mark)
 		if(!node_set)
 		{
 			int key_num = cur_node->key_num;
-			//free_read_index_lock(cur_node);
 			cur_node = cur_node->p_node[key_num];
 			node_set = 1;
 		}
@@ -824,14 +794,12 @@ search_near_leaf(INDEX_NODE *root, int num, SUB_UP mark)
 	{
 		if(num <= mark_leaf->data_record->key)
 		{
-			//apply_read_leaf_lock(mark_leaf);
 			return(mark_leaf);
 		}
 		else
 		{
 			if(mark_leaf->back_node)
 			{
-				//apply_read_leaf_lock(mark_leaf->back_node);
                         	return(mark_leaf->back_node);
 			}
 			else
@@ -844,14 +812,12 @@ search_near_leaf(INDEX_NODE *root, int num, SUB_UP mark)
 	{	
 		if(num >= mark_leaf->data_record->key)
 		{
-			//apply_read_leaf_lock(mark_leaf);
 			return(mark_leaf);
 		}
 		else
 		{
 			if(mark_leaf->front_node)
 			{
-				//apply_read_leaf_lock(mark_leaf->front_node);
                         	return(mark_leaf->front_node);
 			}
 			else
@@ -1640,67 +1606,84 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list, PID user)
 
 	if(low == high)
 	{
-		/*Only onew data insert.*/
-		insert_node(root, data_list->data_record, user);
+		return(NULL);
+	}
+	
+	if(data_info->num < MAXKEYNUM + 1)
+	{
+		return(NULL);
 	}
 
 	/*Analyze and lock leaf link list*/
-	LEAF_NODE *begin_leaf, *end_leaf;
+	LEAF_NODE *begin_leaf, *end_leaf, *first_leaf, *last_leaf;
 	begin_leaf = search_near_leaf(root, low, SUB_MARK);
 	end_leaf = search_near_leaf(root, high, UP_MARK);
+	
+	first_leaf = quick_search_special(root, FIRST_NODE);
+	last_leaf = quick_search_special(root, LAST_NODE);
 
-	DATA_INFO *old_data_info;
-        old_data_info = fetch_leaf_list_data_info(begin_leaf, end_leaf);
-
-	/*For Test*/
-	test_list(old_data_info->data_list, old_data_info->num, ON);
-
-	/*
-	if(!apply_write_sub_tree_lock(sub_tree_list_info->sub_tree_info_link)) 
-	{
-		cout<<"Apply write lock failed.\n"<<endl;
-		free_sub_tree_list_info_mem(sub_tree_list_info);
-		sub_tree_list_info = NULL;
-		return(RUN_FAILED);
-	}
-	*/
-
-	int leaf_num = old_data_info->num + data_info->num;
 	DATA_RECORD_LIST *new_data_list;
-	new_data_list = merge_sort(old_data_info->data_list, sorted_list);
+	int leaf_num;
+	DATA_INFO *old_data_info;
+	IDX_BOOL no_leaf_involved = FALSE;
+	
+	/*All data are inserted before the fist leaf or after the last need to be considered specially.*/
+	if((high < first_leaf->data_record->key) || (low > last_leaf->data_record->key))
+	{
+		new_data_list = sorted_list;
+		leaf_num = data_info->num;
+		old_data_info = NULL;
+		no_leaf_involved = TRUE;
+	}
+	else
+	{
+        	old_data_info = fetch_leaf_list_data_info(begin_leaf, end_leaf);
+
+		/*For Test*/
+		test_list(old_data_info->data_list, old_data_info->num, OFF);
+
+		leaf_num = old_data_info->num + data_info->num;
+		new_data_list = merge_sort(old_data_info->data_list, sorted_list);
+	}
 
 	test_list(new_data_list, leaf_num, OFF);
 
 	/*Need not to use mk_index since it will sort data list again.*/
 	LEAF_NODE *new_leaf_list = link_list(new_data_list, leaf_num);
-	
+
 	INDEX_NODE *new_sub;
 	new_sub = generate_non_leaf(new_leaf_list, leaf_num);	
 
 	/*For test*/
 	//draw_a_tree(new_sub);
 
-	free(old_data_info);
-        old_data_info = NULL;
+	if(!no_leaf_involved)
+	{
+		free(old_data_info);
+        	old_data_info = NULL;
+	
+		/*The whole tree is covered, just replace it.*/
+		if((!(begin_leaf->front_node)) && (!(end_leaf->back_node)))
+        	{
+			free_a_tree_mem(root);
+			root = NULL;
+			return(new_sub);
+		}
+	
 
-	/*The whole tree is covered, just replace it.*/
-	if((!(begin_leaf->front_node)) && (!(end_leaf->back_node)))
-        {
-		free_a_tree_mem(root);
-		root = NULL;
-		return(new_sub);
+		/*Set whole tree locked.*/
+		root->node_lock = WRITE_LOCK;
+		/*Wait all locks to free.*/
+		/*Since any operations except free the whole tree would not change root addr,
+		such strategy will success.*/
+		sleep(MAXLOCKTIME/1000);
+
+		if(!no_leaf_involved)
+		{
+			/*Execute delete theses sub trees*/
+			exec_delete_sub_trees(root, begin_leaf->data_record->key, end_leaf->data_record->key, user);
+		}
 	}
-
-	/*Set whole tree locked.*/
-	root->node_lock = WRITE_LOCK;
-	/*Wait all locks to free.*/
-	/*Since any operations except free the whole tree would not change root addr,
-	such strategy will success.*/
-	sleep(MAXLOCKTIME/1000);
-
-	/*Execute delete theses sub trees*/
-	exec_delete_sub_trees(root, begin_leaf->data_record->key, end_leaf->data_record->key, user);
-
 
 	NODE_PATH_INFO *new_sub_path = scan_node(root, new_sub->pri_key, user);
 
@@ -1712,13 +1695,16 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list, PID user)
 	{
 		new_place_link = new_place_link->next_link;
 	}
+	
+	if(no_leaf_involved)
+	{
+		new_place_link->index_node->node_lock = WRITE_LOCK;
+	}
 
 	exec_insert_index_node(root, new_place_link, new_sub, FALSE);
 
 	/*Need to re-balance the whole tree after batch delete.*/
         //re_balance_tree(root);
-
-	//free lock, need to be design carefully here.*/
 
 	BACK_INFO *back_info;
 
@@ -1738,6 +1724,11 @@ batch_insert(INDEX_NODE *root, DATA_RECORD_LIST *data_list, PID user)
 
 	/*Free lock here.*/
 	root->node_lock = NO_LOCK;
+
+	if(no_leaf_involved)
+        {
+                new_place_link->index_node->node_lock = NO_LOCK;
+        }
 
 	return(root);
 }
@@ -2593,20 +2584,19 @@ exec_delete_a_sub_tree(INDEX_NODE *root, INDEX_NODE_LINK *cur_linked_index, INDE
                         else
                         {
                                 /*Need to split root.*/
-                                INDEX_NODE *old_root;
-                                old_root = next_linked_index->index_node;
 
-                               	int old_root_key_num = old_root->key_num;
+                               	int root_key_num = root->key_num;
 
-                                old_root->p_node[old_root_key_num+1] = old_root->p_node[old_root_key_num];
-                                for(i = old_root_key_num; i != 0; i--)
+                                root->p_node[root_key_num+1] = root->p_node[root_key_num];
+                                for(i = root_key_num; i != 0; i--)
                                 {
-                                        old_root->key_list[i] = old_root->key_list[i - 1];
-                                        old_root->p_node[i] = old_root->p_node[i - 1];
+                                        root->key_list[i] = root->key_list[i - 1];
+                                        root->p_node[i] = root->p_node[i - 1];
                                 }
-                                old_root->key_list[0] = new_insert_node->pri_key;
-                                old_root->p_node[0] = new_insert_node;
-				
+                                root->key_list[0] = new_insert_node->pri_key;
+                                root->p_node[0] = new_insert_node;
+			
+				root->key_num ++;
 				return;
 			}
 		}
@@ -2665,36 +2655,3 @@ batch_delete(INDEX_NODE *root, int low, int high, PID user)
 
 	return(root);
 }
-
-/*This is used to rebalance a tree.*/
-/*Need to design algorithm carefully here.*/
-/*
-DEPTH_INFO *
-re_balance_tree(INDEX_NODE *node)
-{
-	DEPTH_INFO *ret = create_dapth_info_mem();
-
-	if(is_leaf_node(node))
-	{
-		ret->lagest = 0;
-		ret->smallest = 0;
-		return(ret);
-	}
-
-	int i, node_num = node->key_num;
-	DEPTH_INFO *depth_info[node_num];
-	for(i = 0; i != node_num+1; ++i)
-	{
-		depth_info[i] = re_balance_tree(node->p_node[i]);
-	}
-	
-	int smallest, largest;
-	smallest = depth_info[0]->smallest;
-	largest = depth_info[0]->largest;
-
-	for(i = 1; i != node_num+1; ++i)
-	{
-		
-	}
-}
-*/

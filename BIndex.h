@@ -17,6 +17,8 @@ using namespace std;
 #define KEY_RANGE 100000
 #define FAKE_PID 100
 #define MAXLOCKTIME (uint64_t)1000
+#define PORT 8088
+#define CLIENT_NUM 10
 
 
 /*For file operations*/
@@ -30,6 +32,28 @@ using namespace std;
 #define BACK_END "BACK_END"
 #define INVALID " INVALID"
 
+
+/*For C/S communication.*/
+#define RECV_CMD "receive"
+#define RIGHT_SIGNAL "right"
+#define DISPLAY_CMD "display"
+#define OP_CONSOL_HEADER "op_header"
+#define OP_CONSOL "op_consol"
+#define EXIT_CMD "exit"
+#define ERR_CMD "error"
+#define INVALID_CMD "invalid"
+#define PACKAGE_CMD "package"
+#define TYPE_CMD "type"
+#define NO_VALUE "no_value"
+#define HAS_VALUE "hasvalue"
+#define DUP_VALUE "duplicate"
+#define OP_FAILED "op_failed!"
+#define OP_SUCCESS "op_success"
+#define QUIT "quit"
+#define BEGIN_CMD "begin"
+#define ASC_CMD "ASC"
+#define DSC_CMD "DSC"
+#define ALREADY_LOG "already"
 
 /*Define data sturcts.*/
 
@@ -208,13 +232,16 @@ typedef struct lock_record{
 	struct lock_record *next_record;
 } LOCK_RECORD;
 
-/*Need to consider what info to store here*/
-/*
-typedef struct depth_info{
-	int largest;
-	int smallest;
-} DEPTH_INFO;
-*/
+typedef struct user_info{
+	PID user_id;
+	int sockfd;
+} USER_INFO;
+
+typedef struct user_info_list{
+	struct user_info *user_info;
+	pthread_t thread;
+	struct user_info_list *next_user;
+} USER_INFO_LIST;
 
 /*Declare Function.*/
 
